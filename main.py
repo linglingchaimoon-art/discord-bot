@@ -1,7 +1,15 @@
 import discord
 import os
 import asyncio
+import logging
+import traceback
 from discord.ext import commands
+
+logging.basicConfig(
+    level=logging.ERROR,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
+logger = logging.getLogger(__name__)
 
 TOKEN = os.getenv("DISCORD_TOKEN")
 
@@ -20,6 +28,14 @@ async def load_cogs():
            print(f"✅ Loaded {filename}")
 
 @bot.event
+async def on_error(event: str, *args, **kwargs):
+   logger.error(
+       "Unhandled exception in event '%s'\n%s",
+       event,
+       traceback.format_exc(),
+   )
+
+@bot.event
 async def on_ready():
    print(f"✅ Logged in as {bot.user}")
    synced = await bot.tree.sync()
@@ -28,6 +44,10 @@ async def on_ready():
 async def main():
    async with bot:
        await load_cogs()
-       await bot.start(TOKEN)
+       try:
+           await bot.start(TOKEN)
+       except Exception:
+           logger.error("Fatal exception during bot startup\n%s", traceback.format_exc())
+           raise
 
 asyncio.run(main())
