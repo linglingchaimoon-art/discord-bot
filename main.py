@@ -6,30 +6,26 @@ from flask import Flask
 from threading import Thread
 
 # -------------------------
-# WEB SERVER (KEEP ALIVE)
+# KEEP ALIVE (RAILWAY FIX)
 # -------------------------
-app = Flask('')
+app = Flask(__name__)
 
 @app.route('/')
 def home():
    return "Bot is running!"
 
 def run_web():
-   port = int(os.getenv("PORT", 8080))
+   port = int(os.environ.get("PORT", 8080))  # 🔥 IMPORTANT
    app.run(host='0.0.0.0', port=port)
 
-# Start web server in background
-Thread(target=run_web).start()
-
+def keep_alive():
+   t = Thread(target=run_web)
+   t.start()
 
 # -------------------------
-# GET TOKEN
+# TOKEN
 # -------------------------
 TOKEN = os.getenv("DISCORD_TOKEN")
-
-if not TOKEN:
-   raise ValueError("❌ DISCORD_TOKEN is not set!")
-
 
 # -------------------------
 # INTENTS
@@ -37,7 +33,6 @@ if not TOKEN:
 intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
-
 
 # -------------------------
 # BOT SETUP
@@ -48,7 +43,6 @@ bot = commands.Bot(
 )
 
 bot.remove_command("help")
-
 
 # -------------------------
 # LOAD COGS
@@ -62,7 +56,6 @@ async def load_cogs():
            except Exception as e:
                print(f"❌ Failed to load {filename}: {e}")
 
-
 # -------------------------
 # READY EVENT
 # -------------------------
@@ -74,8 +67,7 @@ async def on_ready():
        synced = await bot.tree.sync()
        print(f"🌐 Synced {len(synced)} slash commands")
    except Exception as e:
-       print(f"❌ Sync error: {e}")
-
+       print(f"Sync error: {e}")
 
 # -------------------------
 # ERROR HANDLING
@@ -84,17 +76,14 @@ async def on_ready():
 async def on_command_error(ctx, error):
    await ctx.send(f"❌ Error: {str(error)}")
 
-
 # -------------------------
-# MAIN FUNCTION
+# START BOT
 # -------------------------
 async def main():
-   await load_cogs()
-   await bot.start(TOKEN)
+   keep_alive()  # 🔥 MUST BE BEFORE BOT STARTS
 
+   async with bot:
+       await load_cogs()
+       await bot.start(TOKEN)
 
-# -------------------------
-# RUN BOT
-# -------------------------
-if __name__ == "__main__":
-   asyncio.run(main())
+asyncio.run(main())
