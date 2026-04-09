@@ -158,7 +158,7 @@ class TicketView(discord.ui.View):
        )
 
        # ⏱️ Start reminder loop
-       self.bot.loop.create_task(self.reminder_ping(channel, view))
+       asyncio.create_task(self.reminder_ping(channel, view))
 
    # -------------------------
    # ⏱️ REMINDER SYSTEM
