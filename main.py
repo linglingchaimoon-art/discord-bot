@@ -3,12 +3,28 @@ import os
 import asyncio
 from discord.ext import commands
 
+# -------------------------
+# GET TOKEN
+# -------------------------
 TOKEN = os.getenv("DISCORD_TOKEN")
 
+if not TOKEN:
+   raise ValueError("❌ DISCORD_TOKEN is not set!")
+
+print("TOKEN LOADED:", TOKEN)  # debug
+
+
+# -------------------------
+# INTENTS
+# -------------------------
 intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
 
+
+# -------------------------
+# BOT SETUP
+# -------------------------
 bot = commands.Bot(
    command_prefix="!",
    intents=intents
@@ -37,22 +53,28 @@ async def load_cogs():
 async def on_ready():
    print(f"✅ Logged in as {bot.user}")
 
-
-# -------------------------
-# FORCE KEEP ALIVE LOOP
-# -------------------------
-async def keep_alive():
-   while True:
-       await asyncio.sleep(60)
+   try:
+       synced = await bot.tree.sync()
+       print(f"🌐 Synced {len(synced)} slash commands")
+   except Exception as e:
+       print(f"❌ Sync error: {e}")
 
 
 # -------------------------
-# MAIN
+# ERROR HANDLING
+# -------------------------
+@bot.event
+async def on_command_error(ctx, error):
+   await ctx.send(f"❌ Error: {str(error)}")
+
+
+# -------------------------
+# START BOT (FIXED)
 # -------------------------
 async def main():
    await load_cogs()
-   asyncio.create_task(keep_alive())  # 🔥 prevents shutdown
    await bot.start(TOKEN)
 
 
-asyncio.run(main())
+if __name__ == "__main__":
+   asyncio.run(main())
