@@ -2,6 +2,24 @@ import discord
 import os
 import asyncio
 from discord.ext import commands
+from flask import Flask
+from threading import Thread
+
+# -------------------------
+# WEB SERVER (KEEP ALIVE)
+# -------------------------
+app = Flask('')
+
+@app.route('/')
+def home():
+   return "Bot is running!"
+
+def run_web():
+   app.run(host='0.0.0.0', port=8080)
+
+# Start web server in background
+Thread(target=run_web).start()
+
 
 # -------------------------
 # GET TOKEN
@@ -10,8 +28,6 @@ TOKEN = os.getenv("DISCORD_TOKEN")
 
 if not TOKEN:
    raise ValueError("❌ DISCORD_TOKEN is not set!")
-
-print("TOKEN LOADED:", TOKEN)
 
 
 # -------------------------
@@ -69,24 +85,15 @@ async def on_command_error(ctx, error):
 
 
 # -------------------------
-# KEEP ALIVE LOOP (IMPORTANT)
-# -------------------------
-async def keep_alive():
-   while True:
-       await asyncio.sleep(3600)
-
-
-# -------------------------
-# START BOT (FINAL FIX)
+# MAIN FUNCTION
 # -------------------------
 async def main():
    await load_cogs()
-
-   await asyncio.gather(
-       bot.start(TOKEN),   # runs the bot
-       keep_alive()        # keeps Railway alive
-   )
+   await bot.start(TOKEN)
 
 
+# -------------------------
+# RUN BOT
+# -------------------------
 if __name__ == "__main__":
    asyncio.run(main())
