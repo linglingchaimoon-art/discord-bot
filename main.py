@@ -41,6 +41,10 @@ async def on_ready():
    synced = await bot.tree.sync()
    print(f"🌐 Synced {len(synced)} commands")
 
+@bot.event
+async def on_message(message):
+   pass
+
 async def main():
    async with bot:
        await load_cogs()
