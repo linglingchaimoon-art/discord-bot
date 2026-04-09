@@ -6,21 +6,21 @@ from flask import Flask
 from threading import Thread
 
 # -------------------------
-# KEEP ALIVE (RAILWAY FIX)
+# KEEP ALIVE (FIXED)
 # -------------------------
 app = Flask(__name__)
 
 @app.route('/')
 def home():
-   return "Bot is running!"
+   return "Bot is alive!"
 
 def run_web():
-   port = int(os.environ.get("PORT", 8080))  # 🔥 IMPORTANT
-   app.run(host='0.0.0.0', port=port)
+   port = int(os.environ.get("PORT"))  # 🔥 NO DEFAULT
+   print(f"🌐 Flask running on port {port}")
+   app.run(host="0.0.0.0", port=port)
 
 def keep_alive():
-   t = Thread(target=run_web)
-   t.start()
+   Thread(target=run_web).start()
 
 # -------------------------
 # TOKEN
@@ -80,7 +80,7 @@ async def on_command_error(ctx, error):
 # START BOT
 # -------------------------
 async def main():
-   keep_alive()  # 🔥 MUST BE BEFORE BOT STARTS
+   keep_alive()  # 🔥 MUST BE FIRST
 
    async with bot:
        await load_cogs()
