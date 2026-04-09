@@ -1,0 +1,24 @@
+{
+    "1398304429085556746": {
+        "balance": 11074227450,
+        "wins": 5,
+        "losses": 6,
+        "streak": 0,
+        "last_daily": 1775719335,
+        "last_steal": 1775722594
+    },
+    "1435843535139242104": {
+        "balance": 8902794826,
+        "wins": 0,
+        "losses": 1,
+        "streak": 0,
+        "last_daily": 0,
+        "last_steal": 1775722630
+    },
+    "345457109846196226": {
+        "balance": 2000,
+        "last_daily": 0,
+        "wins": 0,
+        "losses": 0
+    }
+}
