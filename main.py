@@ -11,7 +11,7 @@ TOKEN = os.getenv("DISCORD_TOKEN")
 if not TOKEN:
    raise ValueError("❌ DISCORD_TOKEN is not set!")
 
-print("TOKEN LOADED:", TOKEN)  # debug
+print("TOKEN LOADED:", TOKEN)
 
 
 # -------------------------
@@ -69,17 +69,23 @@ async def on_command_error(ctx, error):
 
 
 # -------------------------
-# START BOT (FIXED)
+# KEEP ALIVE LOOP (IMPORTANT)
+# -------------------------
+async def keep_alive():
+   while True:
+       await asyncio.sleep(3600)
+
+
+# -------------------------
+# START BOT (FINAL FIX)
 # -------------------------
 async def main():
    await load_cogs()
 
-   # Start bot in backround
-   asyncio.create_task(bot.start(TOKEN))
-
-   # KEEP PROGRAM ALIVE FOREVER
-   while True:
-       await asyncio.sleep(3600)
+   await asyncio.gather(
+       bot.start(TOKEN),   # runs the bot
+       keep_alive()        # keeps Railway alive
+   )
 
 
 if __name__ == "__main__":
