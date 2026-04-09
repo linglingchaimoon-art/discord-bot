@@ -73,7 +73,13 @@ async def on_command_error(ctx, error):
 # -------------------------
 async def main():
    await load_cogs()
-   await bot.start(TOKEN)
+
+   # Start bot in backround
+   asyncio.create_task(bot.start(TOKEN))
+
+   # KEEP PROGRAM ALIVE FOREVER
+   while True:
+       await asyncio.sleep(3600)
 
 
 if __name__ == "__main__":
