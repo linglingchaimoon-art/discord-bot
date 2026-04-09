@@ -6,7 +6,7 @@ from flask import Flask
 from threading import Thread
 
 # -------------------------
-# KEEP ALIVE (FIXED)
+# KEEP ALIVE (RAILWAY FIX)
 # -------------------------
 app = Flask(__name__)
 
@@ -15,17 +15,22 @@ def home():
    return "Bot is alive!"
 
 def run_web():
-   port = int(os.environ.get("PORT"))  # 🔥 NO DEFAULT
+   port = int(os.environ.get("PORT", 8080))  # ✅ SAFE DEFAULT
    print(f"🌐 Flask running on port {port}")
    app.run(host="0.0.0.0", port=port)
 
 def keep_alive():
-   Thread(target=run_web).start()
+   t = Thread(target=run_web)
+   t.daemon = True
+   t.start()
 
 # -------------------------
 # TOKEN
 # -------------------------
 TOKEN = os.getenv("DISCORD_TOKEN")
+
+if not TOKEN:
+   raise ValueError("❌ DISCORD_TOKEN is missing in Railway Variables")
 
 # -------------------------
 # INTENTS
@@ -67,7 +72,7 @@ async def on_ready():
        synced = await bot.tree.sync()
        print(f"🌐 Synced {len(synced)} slash commands")
    except Exception as e:
-       print(f"Sync error: {e}")
+       print(f"❌ Sync error: {e}")
 
 # -------------------------
 # ERROR HANDLING
@@ -77,13 +82,16 @@ async def on_command_error(ctx, error):
    await ctx.send(f"❌ Error: {str(error)}")
 
 # -------------------------
-# START BOT
+# MAIN START
 # -------------------------
 async def main():
-   keep_alive()  # 🔥 MUST BE FIRST
+   keep_alive()  # ✅ KEEP THIS FIRST
 
    async with bot:
        await load_cogs()
        await bot.start(TOKEN)
 
+# -------------------------
+# RUN
+# -------------------------
 asyncio.run(main())
