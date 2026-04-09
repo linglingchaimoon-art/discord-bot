@@ -3,28 +3,19 @@ import os
 import asyncio
 from discord.ext import commands
 
-# -------------------------
-# TOKEN
-# -------------------------
 TOKEN = os.getenv("DISCORD_TOKEN")
-print("TOKEN LOADED:", TOKEN)
 
-# -------------------------
-# INTENTS
-# -------------------------
 intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
 
-# -------------------------
-# BOT SETUP
-# -------------------------
 bot = commands.Bot(
    command_prefix="!",
    intents=intents
 )
 
 bot.remove_command("help")
+
 
 # -------------------------
 # LOAD COGS
@@ -38,6 +29,7 @@ async def load_cogs():
            except Exception as e:
                print(f"❌ Failed to load {filename}: {e}")
 
+
 # -------------------------
 # READY EVENT
 # -------------------------
@@ -45,19 +37,22 @@ async def load_cogs():
 async def on_ready():
    print(f"✅ Logged in as {bot.user}")
 
-# -------------------------
-# ERROR HANDLING
-# -------------------------
-@bot.event
-async def on_command_error(ctx, error):
-   await ctx.send(f"❌ Error: {error}")
 
 # -------------------------
-# START BOT
+# FORCE KEEP ALIVE LOOP
+# -------------------------
+async def keep_alive():
+   while True:
+       await asyncio.sleep(60)
+
+
+# -------------------------
+# MAIN
 # -------------------------
 async def main():
-   async with bot:
-       await load_cogs()
-       await bot.start(TOKEN)
+   await load_cogs()
+   asyncio.create_task(keep_alive())  # 🔥 prevents shutdown
+   await bot.start(TOKEN)
+
 
 asyncio.run(main())
