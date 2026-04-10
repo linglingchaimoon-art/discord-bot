@@ -1,6 +1,5 @@
 import discord
 import os
-import asyncio
 import json
 import logging
 from discord.ext import commands
@@ -38,6 +37,8 @@ async def load_cogs():
             except Exception as e:
                 print(f"❌ Failed to load {filename}: {e}")
 
+bot.setup_hook = load_cogs
+
 @bot.event
 async def on_ready():
     print(f"✅ Logged in as {bot.user}")
@@ -56,10 +57,5 @@ async def on_command_error(ctx, error):
         return
     await ctx.send(f"❌ Error: {error}")
 
-async def main():
-    async with bot:
-        await load_cogs()
-        await bot.start(TOKEN)
-
 if __name__ == "__main__":
-    asyncio.run(main())
+    bot.run(TOKEN)
