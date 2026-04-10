@@ -1,57 +1,65 @@
 import discord
 import os
 import asyncio
+import json
 import logging
-import traceback
 from discord.ext import commands
+from dotenv import load_dotenv
 
-logging.basicConfig(
-    level=logging.ERROR,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-)
-logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
+load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
+
+if not TOKEN:
+    raise ValueError("❌ DISCORD_TOKEN not found")
+
+def ensure_file(file):
+    if not os.path.exists(file):
+        with open(file, "w") as f:
+            json.dump({}, f)
+
+ensure_file("data.json")
+ensure_file("tickets.json")
 
 intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
-
 bot.remove_command("help")
 
 async def load_cogs():
-   for filename in os.listdir("./cogs"):
-       if filename.endswith(".py"):
-           await bot.load_extension(f"cogs.{filename[:-3]}")
-           print(f"✅ Loaded {filename}")
-
-@bot.event
-async def on_error(event: str, *args, **kwargs):
-   logger.error(
-       "Unhandled exception in event '%s'\n%s",
-       event,
-       traceback.format_exc(),
-   )
+    for filename in os.listdir("./cogs"):
+        if filename.endswith(".py"):
+            try:
+                await bot.load_extension(f"cogs.{filename[:-3]}")
+                print(f"✅ Loaded {filename}")
+            except Exception as e:
+                print(f"❌ Failed to load {filename}: {e}")
 
 @bot.event
 async def on_ready():
-   print(f"✅ Logged in as {bot.user}")
-   synced = await bot.tree.sync()
-   print(f"🌐 Synced {len(synced)} commands")
+    print(f"✅ Logged in as {bot.user}")
+
+    if not hasattr(bot, "synced"):
+        try:
+            synced = await bot.tree.sync()
+            print(f"🌐 Synced {len(synced)} commands")
+            bot.synced = True
+        except Exception as e:
+            print(f"❌ Sync error: {e}")
 
 @bot.event
-async def on_message(message):
-   pass
+async def on_command_error(ctx, error):
+    if isinstance(error, commands.CommandNotFound):
+        return
+    await ctx.send(f"❌ Error: {error}")
 
 async def main():
-   async with bot:
-       await load_cogs()
-       try:
-           await bot.start(TOKEN)
-       except Exception:
-           logger.error("Fatal exception during bot startup\n%s", traceback.format_exc())
-           raise
+    async with bot:
+        await load_cogs()
+        await bot.start(TOKEN)
 
-asyncio.run(main())
+if __name__ == "__main__":
+    asyncio.run(main())
