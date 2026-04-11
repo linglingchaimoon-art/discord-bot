@@ -172,6 +172,8 @@ class Mod(commands.Cog):
 
        await ctx.channel.purge(limit=amount)
        await ctx.send(f"🧹 Deleted {amount} messages")
+       await asyncio.sleep(5)
+       await msg.delete()
 
    @commands.command()
    async def unban(self, ctx, user_id: int = None):

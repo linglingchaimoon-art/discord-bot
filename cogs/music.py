@@ -1,10 +1,10 @@
+
 import discord
 from discord.ext import commands, tasks
 from discord.ui import View, Button
 import yt_dlp
 import asyncio
 import time
-import random
 
 YDL_OPTIONS = {
     "format": "bestaudio/best",
@@ -74,6 +74,17 @@ class Music(commands.Cog):
         print("🎵 Music cog loaded")
 
         self.update_presence_loop.start()
+
+    # 🔄 RESET
+    def reset(self):
+        print("♻️ RESET BOT STATE")
+        self.queue.clear()
+        self.current = None
+        self.is_playing = False
+        self.loop = False
+        self.start_time = None
+        self.skip_votes.clear()
+
     # 🔍 SEARCH
     def search_yt(self, query):
         print("🔍 Searching:", query)
@@ -117,14 +128,30 @@ class Music(commands.Cog):
     # 🔌 JOIN
     async def join(self, ctx):
         print("🔌 JOIN")
+
         if not ctx.author.voice:
             await ctx.send("❌ Join VC first")
             return False
 
         if not self.vc or not self.vc.is_connected():
             self.vc = await ctx.author.voice.channel.connect()
+            print("✅ Connected to VC")
 
         return True
+
+    # 🎧 AUTO LEAVE
+    @commands.Cog.listener()
+    async def on_voice_state_update(self, member, before, after):
+        if not self.vc or not self.vc.channel:
+            return
+
+        humans = [m for m in self.vc.channel.members if not m.bot]
+
+        if len(humans) == 0:
+            print("👋 VC empty → leaving")
+            await self.vc.disconnect()
+            self.vc = None
+            self.reset()
 
     # ⏱ TIME
     def format_time(self, s):
@@ -162,7 +189,7 @@ class Music(commands.Cog):
         embed.set_thumbnail(url=self.current["thumbnail"])
         return embed
 
-    # 🎧 PRESENCE (music)
+    # 🎧 PRESENCE
     @tasks.loop(seconds=5)
     async def update_presence_loop(self):
         if not self.current:
@@ -177,25 +204,6 @@ class Music(commands.Cog):
             activity=discord.Activity(
                 type=discord.ActivityType.listening,
                 name=f"{self.current['title'][:60]} | {text}"
-            )
-        )
-
-    # 😴 IDLE STATUS
-    @tasks.loop(seconds=10)
-    async def idle_status(self):
-        if self.current:
-            return
-
-        statuses = [
-            "!help | music",
-            "!prandom phonk",
-            "Serving music 🎵"
-        ]
-
-        await self.bot.change_presence(
-            activity=discord.Activity(
-                type=discord.ActivityType.listening,
-                name=random.choice(statuses)
             )
         )
 
@@ -215,6 +223,8 @@ class Music(commands.Cog):
         self.start_time = time.time()
 
         def after(error):
+            if error:
+                print("❌ PLAYER ERROR:", error)
             asyncio.run_coroutine_threadsafe(
                 self.play_next(ctx), self.bot.loop
             )
@@ -225,6 +235,8 @@ class Music(commands.Cog):
             ),
             after=after
         )
+
+        print("🎶 Playing:", song["title"])
 
         await ctx.send(embed=self.create_embed(ctx), view=MusicControls(self))
 
@@ -271,6 +283,7 @@ class Music(commands.Cog):
     # ⏸ PAUSE
     @commands.command()
     async def pause(self, ctx):
+        print("⏸ PAUSE")
         if self.vc:
             self.vc.pause()
             await ctx.send("⏸ Paused", delete_after=5)
@@ -278,6 +291,7 @@ class Music(commands.Cog):
     # ▶ RESUME
     @commands.command()
     async def resume(self, ctx):
+        print("▶ RESUME")
         if self.vc:
             self.vc.resume()
             await ctx.send("▶ Resumed", delete_after=5)
@@ -285,6 +299,7 @@ class Music(commands.Cog):
     # ⏭ SKIP
     @commands.command()
     async def skip(self, ctx):
+        print("⏭ SKIP")
         if self.vc:
             self.vc.stop()
             await ctx.send("⏭ Skipped", delete_after=5)
@@ -292,24 +307,55 @@ class Music(commands.Cog):
     # 👥 SKIP VOTE
     @commands.command()
     async def skipvote(self, ctx):
+        print("🗳 SKIPVOTE")
+
         if not ctx.author.voice or not self.vc:
             return await ctx.send("❌ Join VC")
 
-        members = [m for m in ctx.author.voice.channel.members if not m.bot]
+        if ctx.author.voice.channel != self.vc.channel:
+            return await ctx.send("❌ Not same VC")
+
+        members = [m for m in self.vc.channel.members if not m.bot]
         required = max(1, len(members) // 2)
 
         self.skip_votes.add(ctx.author.id)
 
+        print(f"Votes: {len(self.skip_votes)}/{required}")
+
         if len(self.skip_votes) >= required:
+            print("✅ Vote passed")
             self.skip_votes.clear()
             self.vc.stop()
             return await ctx.send("⏭ Vote passed!")
 
         await ctx.send(f"🗳 {len(self.skip_votes)}/{required} votes")
 
+    # 🧹 CLEAR
+    @commands.command()
+    async def clear(self, ctx):
+        print("🧹 CLEAR")
+
+        if not self.vc:
+            return await ctx.send("❌ Not connected", delete_after=5)
+
+        if self.vc.is_playing() or self.vc.is_paused():
+            self.vc.stop()
+
+        self.reset()
+
+        await self.bot.change_presence(
+            activity=discord.Activity(
+                type=discord.ActivityType.listening,
+                name="!help | music"
+            )
+        )
+
+        await ctx.send("🧹 Queue cleared", delete_after=5)
+
     # ⏹ STOP
     @commands.command()
     async def stop(self, ctx):
+        print("⏹ STOP")
         if self.vc:
             self.queue.clear()
             self.vc.stop()
@@ -319,11 +365,15 @@ class Music(commands.Cog):
     # 👋 LEAVE
     @commands.command()
     async def leave(self, ctx):
+        print("👋 LEAVE")
+
         if self.vc:
             await self.vc.disconnect()
-            self.vc = None
-            self.current = None 
-            await ctx.send("👋 Left")
+
+        self.vc = None
+        self.reset()
+
+        await ctx.send("👋 Left and reset", delete_after=5)
 
 
 async def setup(bot):
