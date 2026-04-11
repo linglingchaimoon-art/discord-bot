@@ -71,15 +71,36 @@ class Music(commands.Cog):
        player = self.get_player(guild.id)
 
        while True:
-           track = await player.queue.get()
+           # Exit the loop if the bot is no longer in a voice channel
+           vc = guild.voice_client
+           if vc is None or not vc.is_connected():
+               print("[player_loop] Bot disconnected, stopping loop.")
+               player.task = None
+               return
+
+           try:
+               track = await asyncio.wait_for(player.queue.get(), timeout=300)
+           except asyncio.TimeoutError:
+               # No tracks queued for 5 minutes — exit and let the bot idle
+               print("[player_loop] Queue idle timeout, stopping loop.")
+               player.task = None
+               return
+
            print("Playing:", track["title"])
 
-           # Wait until connected
-           while True:
+           # Confirm still connected before attempting playback (timeout after 5 s)
+           connected = False
+           for _ in range(5):
                vc = guild.voice_client
                if vc and vc.is_connected():
+                   connected = True
                    break
                await asyncio.sleep(1)
+
+           if not connected:
+               print("[player_loop] Not connected after timeout, stopping loop.")
+               player.task = None
+               return
 
            try:
                source = await discord.FFmpegOpusAudio.from_probe(
@@ -168,6 +189,13 @@ class Music(commands.Cog):
 
            await ctx.send(f"✅ Joined **{ctx.author.voice.channel.name}**")
 
+           # Start the player loop so the bot stays alive and is ready to play
+           player = self.get_player(ctx.guild.id)
+           if player.task is None or player.task.done():
+               player.task = asyncio.create_task(
+                   self.player_loop(ctx.guild, ctx.channel)
+               )
+
        except Exception as e:
            await ctx.send(f"❌ Join error: {e}")
 
@@ -217,6 +245,10 @@ class Music(commands.Cog):
        while not player.queue.empty():
            player.queue.get_nowait()
 
+       if player.task and not player.task.done():
+           player.task.cancel()
+           player.task = None
+
        vc = ctx.guild.voice_client
        if vc:
            if vc.source:
@@ -231,6 +263,10 @@ class Music(commands.Cog):
 
        while not player.queue.empty():
            player.queue.get_nowait()
+
+       if player.task and not player.task.done():
+           player.task.cancel()
+           player.task = None
 
        vc = ctx.guild.voice_client
        if vc:
