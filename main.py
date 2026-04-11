@@ -1,102 +1,120 @@
-import discord
-import os
 import asyncio
+import itertools
 import json
 import logging
-import itertools
+import os
+
+import discord
 from discord.ext import commands, tasks
 from dotenv import load_dotenv
 
+logging.getLogger("discord").setLevel(logging.CRITICAL)
+logging.getLogger("discord.client").setLevel(logging.CRITICAL)
 logging.basicConfig(level=logging.INFO)
 
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
 
 if not TOKEN:
-   raise ValueError("❌ DISCORD_TOKEN not found")
+    raise ValueError("DISCORD_TOKEN not found")
 
-# -------------------------
-# FILE CHECK
-# -------------------------
-def ensure_file(file):
-   if not os.path.exists(file):
-       with open(file, "w") as f:
-           json.dump({}, f)
+
+def ensure_file(file_path: str) -> None:
+    if not os.path.exists(file_path):
+        with open(file_path, "w", encoding="utf-8") as f:
+            json.dump({}, f)
+
 
 ensure_file("data.json")
 ensure_file("tickets.json")
 
-# -------------------------
-# INTENTS
-# -------------------------
 intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
 
-# -------------------------
-# BOT SETUP
-# -------------------------
 bot = commands.Bot(command_prefix="!", intents=intents)
 bot.remove_command("help")
 
-# -------------------------
-# STATUS SYSTEM 🔥
-# -------------------------
 statuses = itertools.cycle([
-   discord.Activity(type=discord.ActivityType.listening, name="!help | !blackjack 🎰"),
+    discord.Activity(type=discord.ActivityType.listening, name="!help | !blackjack"),
 ])
+
 
 @tasks.loop(seconds=10)
 async def change_status():
-   await bot.change_presence(activity=next(statuses))
+    await bot.change_presence(activity=next(statuses))
 
-# -------------------------
-# LOAD COGS
-# -------------------------
+
 async def load_cogs():
-   for filename in os.listdir("./cogs"):
-       if filename.endswith(".py"):
-           try:
-               await bot.load_extension(f"cogs.{filename[:-3]}")
-               print(f"✅ Loaded {filename}")
-           except Exception as e:
-               print(f"❌ Failed to load {filename}: {e}")
+    if not os.path.isdir("./cogs"):
+        print("No cogs folder found.")
+        return
 
-# -------------------------
-# READY EVENT
-# -------------------------
+    for filename in os.listdir("./cogs"):
+        if not filename.endswith(".py") or filename.startswith("_"):
+            continue
+
+        extension = f"cogs.{filename[:-3]}"
+        try:
+            await bot.load_extension(extension)
+            print(f"Loaded {extension}")
+        except Exception as e:
+            print(f"Failed to load {extension}: {e}")
+
+
 @bot.event
 async def on_ready():
-   print(f"✅ Logged in as {bot.user}")
+    print(f"Logged in as {bot.user}")
 
-   # 🔥 START STATUS ROTATION
-   if not change_status.is_running():
-       change_status.start()
+    print("MUSIC COMMANDS:")
+    for command in bot.commands:
+        if command.callback.__module__ == "cogs.music":
+            print(f"{command.name} -> {command.callback.__module__}")
 
-   if not hasattr(bot, "synced"):
-       try:
-           synced = await bot.tree.sync()
-           print(f"🌐 Synced {len(synced)} commands")
-           bot.synced = True
-       except Exception as e:
-           print(f"❌ Sync error: {e}")
+    if not change_status.is_running():
+        change_status.start()
 
-# -------------------------
-# ERROR HANDLING
-# -------------------------
+    if not hasattr(bot, "synced"):
+        try:
+            synced = await bot.tree.sync()
+            print(f"Synced {len(synced)} commands")
+            bot.synced = True
+        except Exception as e:
+            print(f"Sync error: {e}")
+
+
 @bot.event
 async def on_command_error(ctx, error):
-   if isinstance(error, commands.CommandNotFound):
-       return
-   await ctx.send(f"❌ Error: {error}")
+    if isinstance(error, commands.CommandNotFound):
+        return
 
-# -------------------------
-# MAIN
-# -------------------------
+    original = getattr(error, "original", error)
+    print("[NEW HANDLER]", original)
+    msg = str(original).lower()
+
+    if "davey" in msg and "voice" in msg:
+        print(f"[SUPPRESSED DAVEY VOICE ERROR] {original}")
+        return
+
+    print(f"[ERROR] {original}")
+    await ctx.send(f"Error: {original}")
+
+
 async def main():
-   async with bot:
-       await load_cogs()
-       await bot.start(TOKEN)
+    try:
+        async with bot:
+            await load_cogs()
+            await bot.start(TOKEN)
+    finally:
+        for vc in bot.voice_clients:
+            try:
+                await vc.disconnect(force=True)
+            except Exception:
+                pass
+
+
+        
+
 
 if __name__ == "__main__":
-   asyncio.run(main())
+    asyncio.run(main())
