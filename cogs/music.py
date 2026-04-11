@@ -346,7 +346,9 @@ class Music(commands.Cog):
         await self.bot.change_presence(
             activity=discord.Activity(
                 type=discord.ActivityType.listening,
-                name="!help | music"
+                name="!Listening to !help",
+                name="Come and play !blackjack🃏",
+                name="Party with !prandom Rap🎶",
             )
         )
 
