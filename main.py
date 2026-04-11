@@ -3,10 +3,13 @@ import itertools
 import json
 import logging
 import os
+import threading  # ✅ NEW
 
 import discord
 from discord.ext import commands, tasks
 from dotenv import load_dotenv
+
+from web import run_web  # ✅ NEW
 
 logging.getLogger("discord").setLevel(logging.CRITICAL)
 logging.getLogger("discord.client").setLevel(logging.CRITICAL)
@@ -31,18 +34,27 @@ ensure_file("tickets.json")
 intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
+intents.voice_states = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 bot.remove_command("help")
 
-statuses = itertools.cycle([
-    discord.Activity(type=discord.ActivityType.listening, name="!help | !blackjack"),
-])
-
-
 @tasks.loop(seconds=10)
 async def change_status():
-    await bot.change_presence(activity=next(statuses))
+    music = bot.get_cog("Music")
+
+    # 🎵 If music is playing → don't override
+    if music and music.current:
+        return
+
+    statuses = [
+        "Listening to !help",
+        "Come and play !blackjack 🃏",
+        "Party with !prandom Rap🎶",
+        #"Use !play 🎧"
+    ]
+
+    import random
 
 
 async def load_cogs():
@@ -71,33 +83,22 @@ async def on_ready():
         if command.callback.__module__ == "cogs.music":
             print(f"{command.name} -> {command.callback.__module__}")
 
-    if not change_status.is_running():
-        change_status.start()
+    # ✅ START DASHBOARD HERE
+    if not hasattr(bot, "web_started"):
+        threading.Thread(target=run_web, args=(bot,), daemon=True).start()
+        bot.web_started = True
+        print("🌐 Dashboard running on http://localhost:5000")
 
-    if not hasattr(bot, "synced"):
+    if not change_status.is_running():
+       # change_status.start()
+
+     if not hasattr(bot, "synced"):
         try:
             synced = await bot.tree.sync()
             print(f"Synced {len(synced)} commands")
             bot.synced = True
         except Exception as e:
             print(f"Sync error: {e}")
-
-
-@bot.event
-async def on_command_error(ctx, error):
-    if isinstance(error, commands.CommandNotFound):
-        return
-
-    original = getattr(error, "original", error)
-    print("[NEW HANDLER]", original)
-    msg = str(original).lower()
-
-    if "davey" in msg and "voice" in msg:
-        print(f"[SUPPRESSED DAVEY VOICE ERROR] {original}")
-        return
-
-    print(f"[ERROR] {original}")
-    await ctx.send(f"Error: {original}")
 
 
 async def main():
@@ -111,9 +112,6 @@ async def main():
                 await vc.disconnect(force=True)
             except Exception:
                 pass
-
-
-        
 
 
 if __name__ == "__main__":

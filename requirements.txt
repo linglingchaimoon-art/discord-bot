@@ -1,10 +1,9 @@
 discord.py==2.3.2
-yt-dlp
-PyNaCl
 aiohttp==3.8.6
 yarl==1.9.4
 multidict==6.0.5
 python-dotenv
 Pillow
 PyNaCl
-python-ffmpeg
+yt-dlp
+opuslib

@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Music Dashboard</title>
+</head>
+<body style="background:#121212;color:white;text-align:center;font-family:sans-serif;">
+
+<h1>🎵 Music Bot</h1>
+
+<input id="song" placeholder="Enter song">
+<br><br>
+
+<button onclick="play()">▶ Play</button>
+<button onclick="stop()">⏹ Stop</button>
+
+<div id="queue"></div>
+
+<script>
+async function play() {
+    const query = document.getElementById("song").value;
+
+    await fetch("/play", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({query})
+    });
+}
+
+async function stop() {
+    await fetch("/stop", { method: "POST" });
+}
+
+async function loadQueue() {
+    const res = await fetch("/queue");
+    const data = await res.json();
+
+    let html = "<h3>Queue:</h3>";
+    data.forEach(song => {
+        html += "<p>" + song.title + "</p>";
+    });
+
+    document.getElementById("queue").innerHTML = html;
+}
+
+setInterval(loadQueue, 2000);
+</script>
+
+</body>
+</html>
