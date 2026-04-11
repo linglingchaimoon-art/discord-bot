@@ -64,6 +64,8 @@ class Mod(commands.Cog):
        await interaction.guild.ban(member)
        await interaction.followup.send(f"🔨 {member} banned", ephemeral=True)
 
+       
+
    @app_commands.command(name="kick")
    async def slash_kick(self, interaction: discord.Interaction, member: discord.Member):
        if not self.is_admin(interaction.user):
@@ -102,6 +104,8 @@ class Mod(commands.Cog):
    @commands.command()
    async def ping(self, ctx):
        await ctx.send(f"🏓 {round(self.bot.latency * 1000)}ms")
+       
+   
 
    @commands.command()
    async def mute(self, ctx, member: discord.Member = None):
@@ -172,9 +176,7 @@ class Mod(commands.Cog):
 
        await ctx.channel.purge(limit=amount)
        await ctx.send(f"🧹 Deleted {amount} messages")
-       await asyncio.sleep(5)
-       await msg.delete()
-
+ 
    @commands.command()
    async def unban(self, ctx, user_id: int = None):
        if not self.is_admin(ctx.author):
@@ -187,7 +189,9 @@ class Mod(commands.Cog):
        await ctx.guild.unban(user)
        await ctx.send(f"🔓 {user} unbanned")
 
-
+       @commands.command()
+       async def play(self, ctx, *, query):
+              await ctx.send(f"Playing: {query}")
 # -------------------------
 # SETUP
 # -------------------------
