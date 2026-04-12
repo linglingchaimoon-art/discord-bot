@@ -4,8 +4,7 @@ from discord import app_commands
 import os
 from motor.motor_asyncio import AsyncIOMotorClient
 
-# ================= CONFIG =================
-ALLOWED_CHANNEL_ID = 1442896372260016276  # 🔥 CHANGE THIS
+ALLOWED_CHANNEL_ID = 1442896372260016276
 MONGO_URI = os.getenv("MONGO_URI")
 
 
@@ -17,25 +16,13 @@ class ReactionRoles(commands.Cog):
        self.db = self.client["discord_bot"]
        self.collection = self.db["reaction_roles"]
 
-   def is_admin(self, user):
-       return user.guild_permissions.manage_messages
-
-   def check_channel(self, interaction):
-       return interaction.channel.id == ALLOWED_CHANNEL_ID
-
-   # ================= CREATE PANEL =================
-   @app_commands.command(name="rr_create", description="Create role panel")
+   # ================= CREATE =================
+   @app_commands.command(name="rr_create", description="Create panel")
    async def rr_create(self, interaction: discord.Interaction):
 
+       await interaction.response.defer()  # ✅ ALWAYS FIRST
+
        try:
-           await interaction.response.defer()  # ✅ FIXES ERROR 10062
-
-           if not self.is_admin(interaction.user):
-               return await interaction.followup.send("❌ No permission", ephemeral=True)
-
-           if not self.check_channel(interaction):
-               return await interaction.followup.send("❌ Wrong channel", ephemeral=True)
-
            embed = discord.Embed(
                title="🎮 HEAVEN GAMING ROLES",
                description=(
@@ -59,28 +46,24 @@ class ReactionRoles(commands.Cog):
                "roles": {}
            })
 
-           await interaction.followup.send("✅ Panel created", ephemeral=True)
-
        except Exception as e:
-           print("RR_CREATE ERROR:", e)
+           print("CREATE ERROR:", e)
+           await interaction.followup.send(f"❌ {e}")
 
-   # ================= ADD ROLE =================
-   @app_commands.command(name="rr_add", description="Add emoji role")
+   # ================= ADD =================
+   @app_commands.command(name="rr_add", description="Add role")
    async def rr_add(self, interaction: discord.Interaction, emoji: str, role: discord.Role):
 
+       await interaction.response.defer(ephemeral=True)
+
        try:
-           await interaction.response.defer(ephemeral=True)  # ✅ FIX
-
-           if not self.is_admin(interaction.user):
-               return await interaction.followup.send("❌ No permission")
-
            data = await self.collection.find_one(
                {"channel_id": str(interaction.channel.id)},
                sort=[("_id", -1)]
            )
 
            if not data:
-               return await interaction.followup.send("❌ No panel found. Use /rr_create")
+               return await interaction.followup.send("❌ Create panel first")
 
            roles = data.get("roles", {})
            roles[emoji] = role.id
@@ -90,51 +73,14 @@ class ReactionRoles(commands.Cog):
                {"$set": {"roles": roles}}
            )
 
-           # SAFE MESSAGE FETCH
-           try:
-               msg = await interaction.channel.fetch_message(int(data["message_id"]))
-               await msg.add_reaction(emoji)
-           except Exception as e:
-               print("FETCH ERROR:", e)
-               return await interaction.followup.send(f"❌ Message error: {e}")
+           msg = await interaction.channel.fetch_message(int(data["message_id"]))
+           await msg.add_reaction(emoji)
 
-           await interaction.followup.send("✅ Role added")
+           await interaction.followup.send("✅ Added")
 
        except Exception as e:
-           print("RR_ADD ERROR:", e)
-
-   # ================= REMOVE ROLE =================
-   @app_commands.command(name="rr_remove", description="Remove emoji role")
-   async def rr_remove(self, interaction: discord.Interaction, emoji: str):
-
-       try:
-           await interaction.response.defer(ephemeral=True)
-
-           if not self.is_admin(interaction.user):
-               return await interaction.followup.send("❌ No permission")
-
-           data = await self.collection.find_one(
-               {"channel_id": str(interaction.channel.id)},
-               sort=[("_id", -1)]
-           )
-
-           if not data:
-               return await interaction.followup.send("❌ No panel found")
-
-           roles = data.get("roles", {})
-
-           if emoji in roles:
-               del roles[emoji]
-
-           await self.collection.update_one(
-               {"_id": data["_id"]},
-               {"$set": {"roles": roles}}
-           )
-
-           await interaction.followup.send("✅ Removed")
-
-       except Exception as e:
-           print("RR_REMOVE ERROR:", e)
+           print("ADD ERROR:", e)
+           await interaction.followup.send(f"❌ {e}")
 
    # ================= REACTION ADD =================
    @commands.Cog.listener()
@@ -150,8 +96,6 @@ class ReactionRoles(commands.Cog):
 
            guild = self.bot.get_guild(payload.guild_id)
            member = guild.get_member(payload.user_id)
-           if not member:
-               return
 
            emoji = str(payload.emoji)
 
@@ -161,33 +105,8 @@ class ReactionRoles(commands.Cog):
                    await member.add_roles(role)
 
        except Exception as e:
-           print("REACTION ADD ERROR:", e)
-
-   # ================= REACTION REMOVE =================
-   @commands.Cog.listener()
-   async def on_raw_reaction_remove(self, payload):
-
-       try:
-           data = await self.collection.find_one({"message_id": str(payload.message_id)})
-           if not data:
-               return
-
-           guild = self.bot.get_guild(payload.guild_id)
-           member = guild.get_member(payload.user_id)
-           if not member:
-               return
-
-           emoji = str(payload.emoji)
-
-           if emoji in data["roles"]:
-               role = guild.get_role(data["roles"][emoji])
-               if role:
-                   await member.remove_roles(role)
-
-       except Exception as e:
-           print("REACTION REMOVE ERROR:", e)
+           print("REACTION ERROR:", e)
 
 
-# ================= SETUP =================
 async def setup(bot):
    await bot.add_cog(ReactionRoles(bot))
