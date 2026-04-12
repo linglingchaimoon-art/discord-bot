@@ -7,7 +7,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 # =====================================================
 # ⚙️ CONFIG (EDIT THIS)
 # =====================================================
-ALLOWED_CHANNEL_ID = 123456789012345678  # 🔥 CHANGE THIS
+ALLOWED_CHANNEL_ID = 1493012783942598819  # 🔥 CHANGE THIS
 MONGO_URI = os.getenv("MONGO_URI")
 
 
