@@ -1,276 +1,231 @@
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 from discord.ui import View, Button
 import yt_dlp
 import asyncio
 import time
+import random
 
 YDL_OPTIONS = {
-   "format": "bestaudio/best",
-   "quiet": True,
-   "default_search": "ytsearch",
+    "format": "bestaudio/best",
+    "quiet": True,
+    "noplaylist": True,
 }
 
 FFMPEG_OPTIONS = {
-   "before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5",
-   "options": "-vn"
+    "before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5",
+    "options": "-vn"
 }
 
+# ---------------- BUTTON UI ----------------
+class MusicView(View):
+    def __init__(self, cog):
+        super().__init__(timeout=None)
+        self.cog = cog
 
-# 🎮 BUTTON CONTROLS
-class MusicControls(View):
-   def __init__(self, cog):
-       super().__init__(timeout=None)
-       self.cog = cog
+    @discord.ui.button(label="▶", style=discord.ButtonStyle.green)
+    async def resume(self, interaction: discord.Interaction, button: Button):
+        vc = interaction.guild.voice_client
+        if vc and vc.is_paused():
+            vc.resume()
+        await interaction.response.defer()
 
-   @discord.ui.button(label="▶", style=discord.ButtonStyle.green)
-   async def resume(self, interaction: discord.Interaction, button: Button):
-       print(f"[DEBUG] Resume button by {interaction.user}")
-       if self.cog.vc:
-           self.cog.vc.resume()
-       await interaction.response.defer()
+    @discord.ui.button(label="⏸", style=discord.ButtonStyle.gray)
+    async def pause(self, interaction: discord.Interaction, button: Button):
+        vc = interaction.guild.voice_client
+        if vc and vc.is_playing():
+            vc.pause()
+        await interaction.response.defer()
 
-   @discord.ui.button(label="⏸", style=discord.ButtonStyle.gray)
-   async def pause(self, interaction: discord.Interaction, button: Button):
-       print(f"[DEBUG] Pause button by {interaction.user}")
-       if self.cog.vc:
-           self.cog.vc.pause()
-       await interaction.response.defer()
+    @discord.ui.button(label="🔁", style=discord.ButtonStyle.blurple)
+    async def loop(self, interaction: discord.Interaction, button: Button):
+        self.cog.loop = not self.cog.loop
+        await interaction.response.send_message(f"Loop: {self.cog.loop}", ephemeral=True)
 
-   @discord.ui.button(label="🔁", style=discord.ButtonStyle.blurple)
-   async def loop(self, interaction: discord.Interaction, button: Button):
-       self.cog.loop = not self.cog.loop
-       print(f"[DEBUG] Loop toggled → {self.cog.loop}")
-       await interaction.response.send_message(f"🔁 Loop: {self.cog.loop}", ephemeral=True)
+    @discord.ui.button(label="🔀", style=discord.ButtonStyle.blurple)
+    async def shuffle(self, interaction: discord.Interaction, button: Button):
+        random.shuffle(self.cog.queue)
+        await interaction.response.send_message("Queue shuffled", ephemeral=True)
 
-   @discord.ui.button(label="⏭", style=discord.ButtonStyle.blurple)
-   async def skip(self, interaction: discord.Interaction, button: Button):
-       print(f"[DEBUG] Skip button by {interaction.user}")
-       if self.cog.vc:
-           self.cog.vc.stop()
-       await interaction.response.defer()
+    @discord.ui.button(label="⏭", style=discord.ButtonStyle.blurple)
+    async def skip(self, interaction: discord.Interaction, button: Button):
+        vc = interaction.guild.voice_client
+        if vc:
+            vc.stop()
+        await interaction.response.defer()
 
-   @discord.ui.button(label="⏹", style=discord.ButtonStyle.red)
-   async def stop(self, interaction: discord.Interaction, button: Button):
-       print(f"[DEBUG] Stop button by {interaction.user}")
-       if self.cog.vc:
-           self.cog.queue.clear()
-           self.cog.vc.stop()
-       await interaction.response.defer()
+    @discord.ui.button(label="⏹", style=discord.ButtonStyle.red)
+    async def stop(self, interaction: discord.Interaction, button: Button):
+        vc = interaction.guild.voice_client
+        if vc:
+            await vc.disconnect()
+            self.cog.queue.clear()
+            self.cog.vc = None
+        await interaction.response.defer()
 
 
+# ---------------- COG ----------------
 class Music(commands.Cog):
-   def __init__(self, bot):
-       self.bot = bot
-       self.queue = []
-       self.is_playing = False
-       self.vc = None
-       self.current = None
-       self.loop = False
-       self.start_time = None
+    def __init__(self, bot):
+        self.bot = bot
+        self.queue = []
+        self.vc = None
+        self.current = None
+        self.start_time = 0
+        self.volume = 0.5
+        self.loop = False
+        self.message = None
 
-   # ---------------- SEARCH ----------------
-   def search_yt(self, query):
-       print(f"[DEBUG] Searching YouTube: {query}")
+    # ---------------- SEARCH ----------------
+    def search(self, query):
+        with yt_dlp.YoutubeDL(YDL_OPTIONS) as ydl:
+            info = ydl.extract_info(f"ytsearch1:{query}", download=False)
 
-       try:
-           ydl = yt_dlp.YoutubeDL(YDL_OPTIONS)
-           info = ydl.extract_info(query, download=False)
+            if "entries" in info:
+                info = info["entries"][0]
 
-           if "entries" in info:
-               info = info["entries"][0]
+            return {
+                "source": info["url"],
+                "title": info["title"],
+                "duration": info.get("duration", 0),
+                "thumbnail": info.get("thumbnail"),
+                "views": info.get("view_count"),
+                "likes": info.get("like_count"),
+                "uploader": info.get("uploader"),
+            }
 
-           return {
-               "source": info["url"],
-               "title": info["title"],
-               "duration": info.get("duration", 0),
-               "views": info.get("view_count", 0),
-               "likes": info.get("like_count", 0),
-               "uploader": info.get("uploader", "Unknown"),
-               "thumbnail": info.get("thumbnail"),
-               "upload_date": info.get("upload_date", "Unknown")
-           }
+    # ---------------- FORMAT ----------------
+    def format_time(self, seconds):
+        m, s = divmod(int(seconds), 60)
+        return f"{m:02}:{s:02}"
 
-       except Exception as e:
-           print(f"[ERROR] search_yt failed: {e}")
-           return None
+    def progress_bar(self, position, duration, length=20):
+        if duration == 0:
+            return "LIVE"
+        filled = int(length * position // duration)
+        return "━" * filled + "🔘" + "━" * (length - filled)
 
-   # ---------------- JOIN ----------------
-   async def join(self, ctx):
-       print(f"[DEBUG] Join attempt by {ctx.author}")
+    # ---------------- EMBED ----------------
+    def create_embed(self, ctx):
+        song = self.current
+        pos = time.time() - self.start_time if song else 0
 
-       if not ctx.author.voice:
-           await ctx.send("❌ Join a VC first")
-           return False
+        embed = discord.Embed(
+            title="Currently Playing:",
+            description=f"**{song['title']}**",
+            color=discord.Color.green()
+        )
 
-       channel = ctx.author.voice.channel
+        embed.add_field(name="By", value=song.get("uploader"), inline=False)
+        embed.add_field(name="Views", value=song.get("views"), inline=True)
+        embed.add_field(name="Likes", value=song.get("likes"), inline=True)
+        embed.add_field(name="Requested By", value=ctx.author.mention, inline=False)
 
-       if not self.vc or not self.vc.is_connected():
-           self.vc = await channel.connect()
+        bar = self.progress_bar(pos, song["duration"])
+        embed.add_field(
+            name="Playback",
+            value=f"{self.format_time(pos)} {bar} {self.format_time(song['duration'])}",
+            inline=False
+        )
 
-       return True
+        if self.queue:
+            embed.add_field(name="Next", value=self.queue[0]["title"], inline=False)
+        else:
+            embed.add_field(name="Next", value="Nothing next in queue", inline=False)
 
-   # ---------------- PROGRESS BAR ----------------
-   def progress_bar(self):
-       if not self.start_time or not self.current:
-           return "▶️ 00:00 ───────── 00:00"
+        if song.get("thumbnail"):
+            embed.set_thumbnail(url=song["thumbnail"])
 
-       elapsed = int(time.time() - self.start_time)
-       duration = self.current["duration"]
+        embed.set_footer(text="Music Bot")
 
-       if duration == 0:
-           return "Live"
+        return embed
 
-       progress = int((elapsed / duration) * 20)
-       bar = "─" * progress + "●" + "─" * (20 - progress)
+    # ---------------- LIVE UPDATE ----------------
+    async def update_message(self, ctx):
+        while self.current and self.vc and self.vc.is_playing():
+            await asyncio.sleep(5)
+            try:
+                await self.message.edit(embed=self.create_embed(ctx), view=MusicView(self))
+            except:
+                break
 
-       return f"{self.format_time(elapsed)} {bar} {self.format_time(duration)}"
+    # ---------------- PLAY NEXT ----------------
+    async def play_next(self, ctx):
+        if self.loop and self.current:
+            self.queue.insert(0, self.current)
 
-   def format_time(self, seconds):
-       return time.strftime("%M:%S", time.gmtime(seconds))
+        if not self.queue:
+            self.current = None
+            return
 
-   # ---------------- EMBED ----------------
-   def create_embed(self, ctx):
-       song = self.current
+        song = self.queue.pop(0)
+        self.current = song
+        self.start_time = time.time()
 
-       embed = discord.Embed(
-           title="Currently Playing:",
-           description=f"**{song['title']}**",
-           color=0x1DB954
-       )
+        def after(e):
+            asyncio.run_coroutine_threadsafe(self.play_next(ctx), self.bot.loop)
 
-       embed.add_field(name="By", value=song["uploader"], inline=False)
-       embed.add_field(name="Views", value=f"{song['views']:,}", inline=True)
-       embed.add_field(name="Likes", value=f"{song['likes']:,}", inline=True)
-       embed.add_field(name="Requested By", value=ctx.author.mention, inline=False)
-       embed.add_field(name="Playback", value=self.progress_bar(), inline=False)
+        source = discord.PCMVolumeTransformer(
+            discord.FFmpegPCMAudio(song["source"], **FFMPEG_OPTIONS),
+            volume=self.volume
+        )
 
-       if len(self.queue) == 0:
-           embed.add_field(name="Next", value="Nothing next in queue", inline=False)
-       else:
-           embed.add_field(name="Next", value=self.queue[0]["title"], inline=False)
+        self.vc.play(source, after=after)
 
-       embed.set_thumbnail(url=song["thumbnail"])
-       return embed
+        embed = self.create_embed(ctx)
 
-   # ---------------- PLAY NEXT ----------------
-   async def play_next(self, ctx):
-       print("[DEBUG] play_next triggered")
+        self.message = await ctx.send(embed=embed, view=MusicView(self))
 
-       if len(self.queue) == 0:
-           self.is_playing = False
-           print("[DEBUG] Queue empty")
-           return
+        self.bot.loop.create_task(self.update_message(ctx))
 
-       if not self.vc:
-           print("[ERROR] No voice client")
-           return
+    # ---------------- COMMANDS ----------------
+    @commands.command()
+    async def play(self, ctx, *, query):
+        if not ctx.author.voice:
+            return await ctx.send("Join VC first")
 
-       if self.loop and self.current:
-           song = self.current
-       else:
-           song = self.queue.pop(0)
+        if not self.vc:
+            self.vc = await ctx.author.voice.channel.connect()
 
-       self.current = song
-       self.start_time = time.time()
+        song = self.search(query)
+        self.queue.append(song)
 
-       def after(error):
-           if error:
-               print(f"[ERROR] Player error: {error}")
+        await ctx.send(f"Added: {song['title']}")
 
-           asyncio.run_coroutine_threadsafe(
-               self.play_next(ctx), self.bot.loop
-           )
+        if not self.vc.is_playing():
+            await self.play_next(ctx)
 
-       source = discord.PCMVolumeTransformer(
-           discord.FFmpegPCMAudio(song["source"], **FFMPEG_OPTIONS),
-           volume=0.5
-       )
+    @commands.command()
+    async def queue(self, ctx):
+        if not self.queue:
+            return await ctx.send("Queue empty")
 
-       self.vc.play(source, after=after)
+        text = "\n".join([f"{i+1}. {s['title']}" for i, s in enumerate(self.queue[:10])])
+        embed = discord.Embed(title="Queue", description=text, color=discord.Color.blurple())
+        await ctx.send(embed=embed)
 
-       embed = self.create_embed(ctx)
-       view = MusicControls(self)
+    @commands.command()
+    async def skip(self, ctx):
+        if self.vc:
+            self.vc.stop()
 
-       print("[DEBUG] Sending player UI")
+    @commands.command()
+    async def pause(self, ctx):
+        if self.vc:
+            self.vc.pause()
 
-       try:
-           await ctx.send(embed=embed, view=view)
-       except Exception as e:
-           print(f"[ERROR] Failed to send player UI: {e}")
+    @commands.command()
+    async def resume(self, ctx):
+        if self.vc:
+            self.vc.resume()
 
-   # ---------------- PLAY ----------------
-   @commands.command()
-   async def play(self, ctx, *, query):
-       print(f"[DEBUG] Play command → {query}")
-
-       if not await self.join(ctx):
-           return
-
-       await ctx.send("🔍 Searching...")
-
-       song = self.search_yt(query)
-
-       if not song:
-           await ctx.send("❌ Failed to find song")
-           return
-
-       self.queue.append(song)
-       await ctx.send(f"✅ Added: {song['title']}")
-
-       if not self.is_playing:
-           self.is_playing = True
-           await self.play_next(ctx)
-
-   # ---------------- PRANDOM ----------------
-   @commands.command()
-   async def prandom(self, ctx, *, genre):
-       print(f"[DEBUG] prandom → {genre}")
-
-       if not await self.join(ctx):
-           return
-
-       await ctx.send(f"🎶 Loading **{genre}** playlist...")
-
-       try:
-           ydl = yt_dlp.YoutubeDL(YDL_OPTIONS)
-           info = ydl.extract_info(f"ytsearch20:{genre} music", download=False)
-
-           if "entries" not in info:
-               await ctx.send("❌ No songs found")
-               return
-
-           added = 0
-
-           for entry in info["entries"]:
-               if not entry:
-                   continue
-
-               song = {
-                   "source": entry["url"],
-                   "title": entry["title"],
-                   "duration": entry.get("duration", 0),
-                   "views": entry.get("view_count", 0),
-                   "likes": entry.get("like_count", 0),
-                   "uploader": entry.get("uploader", "Unknown"),
-                   "thumbnail": entry.get("thumbnail"),
-                   "upload_date": entry.get("upload_date", "Unknown")
-               }
-
-               self.queue.append(song)
-               added += 1
-
-           await ctx.send(f"✅ Queued {added} songs")
-
-           if not self.is_playing:
-               self.is_playing = True
-               await self.play_next(ctx)
-
-       except Exception as e:
-           print(f"[ERROR] prandom failed: {e}")
-           await ctx.send("❌ Failed to load playlist")
-
+    @commands.command()
+    async def stop(self, ctx):
+        if self.vc:
+            await self.vc.disconnect()
+            self.queue.clear()
+            self.vc = None
 
 # ---------------- SETUP ----------------
 async def setup(bot):
-   await bot.add_cog(Music(bot))
+    await bot.add_cog(Music(bot))

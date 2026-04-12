@@ -88,6 +88,7 @@ class TicketView(discord.ui.View):
 
    @discord.ui.button(label="Create ticket", style=discord.ButtonStyle.secondary, emoji="📩")
    async def create_ticket(self, interaction: discord.Interaction, button: discord.ui.Button):
+       print(f"[DEBUG] create_ticket called by {interaction.user}")
 
        global ticket_counter
 
@@ -184,6 +185,7 @@ class Ticket(commands.Cog):
 
    @commands.command()
    async def ticketpanel(self, ctx):
+       print(f"[DEBUG] ticketpanel called by {ctx.author}")
 
        embed = discord.Embed(
            title="Support Tickets",

@@ -1,61 +1,82 @@
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 from discord import app_commands
+import itertools
 
 OWNER_ID = 1398304429085556746
 
+colors = itertools.cycle([
+   0x1DB954,
+   0x5865F2,
+   0xFF5555,
+   0x00FFFF
+])
 
 # -------------------------
-# DROPDOWN SELECT
+# DROPDOWN
 # -------------------------
 class HelpSelect(discord.ui.Select):
-   def __init__(self, pages):
+   def __init__(self, pages, user):
        self.pages = pages
 
        options = [
            discord.SelectOption(label="Home", emoji="🏠", value="Home"),
-           discord.SelectOption(label="Moderation", emoji="🔨", value="Moderation"),
            discord.SelectOption(label="Games", emoji="🎮", value="Games"),
            discord.SelectOption(label="Music", emoji="🎵", value="Music"),
        ]
 
+       # 🔒 ONLY SHOW MODERATION IF USER HAS PERMISSION
+       if user.guild_permissions.manage_messages:
+           options.insert(1, discord.SelectOption(label="Moderation", emoji="🔨", value="Moderation"))
+
        super().__init__(placeholder="Select a category...", options=options)
 
    async def callback(self, interaction: discord.Interaction):
-       print(f"[DEBUG] Dropdown used by {interaction.user} → {self.values[0]}")
+       selected = self.values[0]
+
+       if selected == "Moderation" and not interaction.user.guild_permissions.manage_messages:
+           return await interaction.response.send_message("❌ No permission", ephemeral=True)
+
+       self.view.current = selected
+       self.view.cog.active_messages[interaction.message]["page"] = selected
 
        await interaction.response.edit_message(
-           embed=self.pages[self.values[0]],
+           embed=self.pages[selected],
            view=self.view
        )
-
 
 # -------------------------
 # VIEW
 # -------------------------
 class HelpView(discord.ui.View):
-   def __init__(self, pages, author):
-       super().__init__(timeout=120)
+   def __init__(self, pages, author, cog):
+       super().__init__(timeout=None)
        self.pages = pages
        self.author = author
+       self.cog = cog
+       self.current = "Home"
 
-       self.add_item(HelpSelect(pages))
+       self.add_item(HelpSelect(pages, author))
 
    async def interaction_check(self, interaction: discord.Interaction):
        if interaction.user != self.author:
-           await interaction.response.send_message(
-               "❌ This menu isn't for you.",
-               ephemeral=True
-           )
+           await interaction.response.send_message("❌ This menu isn't for you.", ephemeral=True)
            return False
        return True
 
+   @discord.ui.button(label="Home", style=discord.ButtonStyle.secondary, emoji="🏠")
+   async def home_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+       self.current = "Home"
+       self.cog.active_messages[interaction.message]["page"] = "Home"
+
+       await interaction.response.edit_message(
+           embed=self.pages["Home"],
+           view=self
+       )
+
    @discord.ui.button(label="Close", style=discord.ButtonStyle.danger)
    async def close(self, interaction: discord.Interaction, button: discord.ui.Button):
-       print(f"[DEBUG] Closed by {interaction.user}")
-       await interaction.response.defer()
        await interaction.message.delete()
-
 
 # -------------------------
 # COG
@@ -63,18 +84,37 @@ class HelpView(discord.ui.View):
 class Help(commands.Cog):
    def __init__(self, bot):
        self.bot = bot
+       self.active_messages = {}
 
+       self.animate.start()
+
+   # 🎨 ANIMATION
+   @tasks.loop(seconds=5)
+   async def animate(self):
+       for message, data in list(self.active_messages.items()):
+           try:
+               page = data["page"]
+               embed = data["pages"][page]
+
+               embed.color = next(colors)
+
+               await message.edit(embed=embed, view=data["view"])
+           except:
+               self.active_messages.pop(message, None)
+
+   # -------------------------
+   # /help
+   # -------------------------
    @app_commands.command(name="help", description="Show the help menu")
    async def help_slash(self, interaction: discord.Interaction):
-       print(f"[DEBUG] /help used by {interaction.user}")
 
        prefix = "!"
 
-       # HOME
+       # 🏠 HOME
        home = discord.Embed(
            title="📖 Help Menu",
            description="Select a category below",
-           colour=discord.Colour.blurple()
+           colour=next(colors)
        )
 
        home.add_field(
@@ -83,89 +123,93 @@ class Help(commands.Cog):
            inline=False
        )
 
-       # MODERATION
+       # 🔨 MODERATION
        moderation = discord.Embed(
            title="🔨 Moderation Commands",
-           colour=discord.Colour.red()
+           description="Admin tools & dashboard",
+           colour=next(colors)
        )
 
-       moderation.add_field(name="🧹 Purge", value=f"{prefix}purge <amount>", inline=False)
-       moderation.add_field(name="🔇 Mute", value=f"{prefix}mute <member>", inline=False)
-       moderation.add_field(name="🔊 Unmute", value=f"{prefix}unmute <member>", inline=False)
+       moderation.add_field(name="🎛 Dashboard", value="!modpanel @user", inline=False)
+       moderation.add_field(name="🔨 Actions", value="/ban\n/kick\n/mute\n/unmute", inline=False)
+       moderation.add_field(name="🔓 Unban", value="/unban user_id:<id>", inline=False)
+       moderation.add_field(name="🔍 Ban List", value="/banlist", inline=False)
+       moderation.add_field(name="📊 Cases", value="/case <id>\n/cases @user", inline=False)
+       moderation.add_field(name="👤 User", value="/user @user", inline=False)
 
-       # GAMES
+       # 🎮 BLACKJACK
        games = discord.Embed(
-           title="🎮 Games Commands",
-           colour=discord.Colour.green()
+           title="🎮 Blackjack",
+           description="Casino-style blackjack system",
+           colour=next(colors)
        )
 
-       games.add_field(name="🃏 Blackjack", value=f"{prefix}blackjack <amount>", inline=False)
+       games.add_field(
+           name="🃏 Commands",
+           value=(
+               "`!blackjack <amount>`\n"
+               "`!blackjack all`\n"
+               "`!balance`\n"
+               "`!balance @user`\n"
+               "`!daily`"
+           ),
+           inline=False
+       )
+
+       games.add_field(
+           name="💸 Economy",
+           value="`!pay`\n`!steal`",
+           inline=False
+       )
 
        if interaction.user.id == OWNER_ID:
            games.add_field(
                name="👑 Owner",
-               value=f"{prefix}addbalance @user",
+               value="`!addbalance`\n`!removebalance`",
                inline=False
            )
 
+       games.add_field(
+           name="✨ Features",
+           value="Economy 💰\nRisk 🎲\nCooldowns ⏱",
+           inline=False
+       )
+
        # 🎵 MUSIC
        music = discord.Embed(
-           title="🎵 Music Commands",
-           description="Full music control system",
-           colour=0x1DB954
+           title="🎵 Music Bot",
+           description="Spotify-style music system",
+           colour=next(colors)
        )
 
        music.add_field(
-           name="▶ Playback",
+           name="🎶 Commands",
            value=(
-               f"{prefix}play <song>\n"
-               f"{prefix}pause\n"
-               f"{prefix}resume\n"
-               f"{prefix}skip\n"
-               f"{prefix}stop\n"
-               f"{prefix}leave"
+               "`!play <song>`\n"
+               "`!pause`\n"
+               "`!resume`\n"
+               "`!skip`\n"
+               "`!stop`\n"
+               "`!queue`"
            ),
            inline=False
        )
 
        music.add_field(
-           name="📜 Queue",
-           value=(
-               f"{prefix}queue\n"
-               f"{prefix}clear"
-           ),
+           name="🎮 Controls",
+           value="▶ ⏸ 🔁 🔀 ⏭ ⏹",
            inline=False
        )
 
        music.add_field(
-           name="🎧 Info",
-           value=(
-               f"{prefix}nowplaying\n"
-               f"{prefix}np"
-           ),
+           name="✨ Features",
+           value="Progress bar 🔴\nQueue 📜\nLoop 🔁\nShuffle 🔀",
            inline=False
        )
 
-       music.add_field(
-           name="🔊 Audio",
-           value=f"{prefix}volume <0-100>",
-           inline=False
-       )
-
-       # ✅ PRANDOM ADDED
-       music.add_field(
-           name="📻 Radio Mode",
-           value=f"{prefix}prandom <genre>",
-           inline=False
-       )
-
-       music.add_field(
-           name="🎮 Buttons",
-           value="Use the buttons on the player for quick control",
-           inline=False
-       )
-
+       # -------------------------
        # PAGES
+       # -------------------------
        pages = {
            "Home": home,
            "Moderation": moderation,
@@ -173,30 +217,20 @@ class Help(commands.Cog):
            "Music": music
        }
 
-       view = HelpView(pages, interaction.user)
+       view = HelpView(pages, interaction.user, self)
 
-       # SEND EPHEMERAL
        await interaction.response.send_message(
-           "📬 Check your DMs! (also shown below)",
            embed=home,
-           view=view,
-           ephemeral=True
+           view=view
        )
 
-       # DM USER
-       try:
-           dm = await interaction.user.create_dm()
-           await dm.send(embed=home, view=HelpView(pages, interaction.user))
-           print("[DEBUG] DM sent successfully")
+       msg = await interaction.original_response()
 
-       except Exception as e:
-           print(f"[ERROR] Could not DM user: {e}")
-
-           await interaction.followup.send(
-               "❌ I couldn't DM you. Please enable DMs.",
-               ephemeral=True
-           )
-
+       self.active_messages[msg] = {
+           "pages": pages,
+           "page": "Home",
+           "view": view
+       }
 
 # -------------------------
 # SETUP
