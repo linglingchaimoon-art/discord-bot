@@ -4,7 +4,7 @@ from discord import app_commands
 import json, os
 from datetime import datetime
 
-LOG_CHANNEL_ID = 123456789012345678  # 🔥 CHANGE THIS
+LOG_CHANNEL_ID = 1442896372549550143  # 🔥 CHANGE THIS
 
 # 🧠 AUTO PUNISH SETTINGS
 WARN_LIMITS = {
