@@ -1,7 +1,7 @@
 import discord
 from discord.ext import commands
 
-VERIFY_ROLE_NAME = "HEAVEN"
+VERIFY_ROLE_NAME = "♥︎"
 
 
 # -------------------------
