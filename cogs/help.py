@@ -18,7 +18,7 @@ colors = itertools.cycle([
 class HelpSelect(discord.ui.Select):
    def __init__(self, pages, user):
        self.pages = pages
-
+    
        options = [
            discord.SelectOption(label="Home", emoji="🏠", value="Home"),
            discord.SelectOption(label="Games", emoji="🎮", value="Games"),

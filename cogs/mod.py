@@ -1,68 +1,171 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
-import json
-import os
+import json, os
+from datetime import datetime
 
-LOG_CHANNEL_ID = 1442896372549550143
+LOG_CHANNEL_ID = 123456789012345678  # 🔥 CHANGE THIS
 
-# -------------------------
-# CASE SYSTEM
-# -------------------------
-def load_cases():
-   if not os.path.exists("cases.json"):
+# 🧠 AUTO PUNISH SETTINGS
+WARN_LIMITS = {
+   2: "mute",
+   3: "kick",
+   4: "ban"
+}
+
+# ---------------- DEBUG ----------------
+def debug(msg):
+   print(f"[MOD DEBUG] {msg}")
+
+# ---------------- JSON ----------------
+def load_json(file):
+   if not os.path.exists(file):
+       debug(f"{file} not found, creating new")
        return {}
-   with open("cases.json", "r") as f:
+   with open(file, "r") as f:
        return json.load(f)
 
-def save_cases(data):
-   with open("cases.json", "w") as f:
+def save_json(file, data):
+   with open(file, "w") as f:
        json.dump(data, f, indent=4)
 
-def create_case(guild_id, user_id, moderator_id, action, reason):
-   data = load_cases()
-   gid = str(guild_id)
+# ---------------- CASE ----------------
+def create_case(gid, uid, mid, action, reason):
+   debug(f"Creating case: {action} for {uid}")
 
-   if gid not in data:
-       data[gid] = {"count": 0, "cases": {}}
+   data = load_json("cases.json")
 
-   data[gid]["count"] += 1
-   case_id = data[gid]["count"]
+   if str(gid) not in data:
+       data[str(gid)] = {"count": 0, "cases": {}}
 
-   data[gid]["cases"][str(case_id)] = {
-       "user": user_id,
-       "moderator": moderator_id,
+   data[str(gid)]["count"] += 1
+   cid = data[str(gid)]["count"]
+
+   data[str(gid)]["cases"][str(cid)] = {
+       "user": uid,
+       "mod": mid,
        "action": action,
-       "reason": reason
+       "reason": reason,
+       "time": str(datetime.utcnow())
    }
 
-   save_cases(data)
-   return case_id
+   save_json("cases.json", data)
+   return cid
 
-# -------------------------
-# LOG
-# -------------------------
-async def send_log(guild, embed):
-   channel = guild.get_channel(LOG_CHANNEL_ID)
-   if channel:
-       await channel.send(embed=embed)
+# ---------------- WARN ----------------
+def add_warn(gid, uid, reason):
+   debug(f"Adding warn to {uid}: {reason}")
 
-# -------------------------
-# MODAL
-# -------------------------
-class ReasonModal(discord.ui.Modal, title="Enter Reason"):
+   data = load_json("warnings.json")
+
+   if str(gid) not in data:
+       data[str(gid)] = {}
+
+   if str(uid) not in data[str(gid)]:
+       data[str(gid)][str(uid)] = []
+
+   data[str(gid)][str(uid)].append(reason)
+   save_json("warnings.json", data)
+
+def get_warns(gid, uid):
+   data = load_json("warnings.json")
+   return data.get(str(gid), {}).get(str(uid), [])
+
+# ---------------- PANEL ----------------
+class ModPanel(discord.ui.View):
+   def __init__(self, cog, member):
+       super().__init__(timeout=60)
+       self.cog = cog
+       self.member = member
+
+   @discord.ui.button(label="Ban", style=discord.ButtonStyle.danger)
+   async def ban(self, interaction: discord.Interaction, button):
+       debug(f"Ban button clicked by {interaction.user}")
+       await interaction.response.send_modal(ReasonModal(self.cog, "ban", self.member))
+
+   @discord.ui.button(label="Kick", style=discord.ButtonStyle.blurple)
+   async def kick(self, interaction: discord.Interaction, button):
+       debug(f"Kick button clicked by {interaction.user}")
+       await interaction.response.send_modal(ReasonModal(self.cog, "kick", self.member))
+
+   @discord.ui.button(label="Mute", style=discord.ButtonStyle.gray)
+   async def mute(self, interaction: discord.Interaction, button):
+       debug(f"Mute button clicked by {interaction.user}")
+       await interaction.response.send_modal(ReasonModal(self.cog, "mute", self.member))
+
+   @discord.ui.button(label="Warn", style=discord.ButtonStyle.green)
+   async def warn(self, interaction: discord.Interaction, button):
+       debug(f"Warn button clicked by {interaction.user}")
+       await interaction.response.send_modal(ReasonModal(self.cog, "warn", self.member))
+
+# ---------------- MODAL ----------------
+class ReasonModal(discord.ui.Modal, title="Reason"):
    reason = discord.ui.TextInput(label="Reason", required=False)
 
-   def __init__(self, action, member, cog):
+   def __init__(self, cog, action, member):
        super().__init__()
+       self.cog = cog
        self.action = action
        self.member = member
-       self.cog = cog
 
    async def on_submit(self, interaction: discord.Interaction):
        reason = self.reason.value or "No reason"
+       debug(f"Modal submit: {self.action} → {self.member} | {reason}")
 
-       case_id = create_case(
+       # ⚠️ WARN
+       if self.action == "warn":
+           add_warn(interaction.guild.id, self.member.id, reason)
+           warns = len(get_warns(interaction.guild.id, self.member.id))
+
+           debug(f"User now has {warns} warnings")
+
+           await interaction.response.send_message(f"⚠️ Warn #{warns}", ephemeral=True)
+
+           # 🧠 AUTO PUNISH
+           if warns in WARN_LIMITS:
+               action = WARN_LIMITS[warns]
+               debug(f"Auto punish triggered: {action}")
+
+               try:
+                   if action == "mute":
+                       role = discord.utils.get(interaction.guild.roles, name="Muted")
+                       if not role:
+                           role = await interaction.guild.create_role(name="Muted")
+                       await self.member.add_roles(role)
+
+                   elif action == "kick":
+                       await interaction.guild.kick(self.member)
+
+                   elif action == "ban":
+                       await interaction.guild.ban(self.member)
+
+                   await interaction.followup.send(f"⚡ Auto {action} triggered!", ephemeral=True)
+
+               except Exception as e:
+                   debug(f"Auto punish failed: {e}")
+
+           return
+
+       # 🔨 ACTIONS
+       try:
+           if self.action == "ban":
+               await interaction.guild.ban(self.member)
+
+           elif self.action == "kick":
+               await interaction.guild.kick(self.member)
+
+           elif self.action == "mute":
+               role = discord.utils.get(interaction.guild.roles, name="Muted")
+               if not role:
+                   role = await interaction.guild.create_role(name="Muted")
+               await self.member.add_roles(role)
+
+       except Exception as e:
+           debug(f"Action failed: {e}")
+           return await interaction.response.send_message(f"❌ Error: {e}", ephemeral=True)
+
+       # 📜 CASE
+       cid = create_case(
            interaction.guild.id,
            self.member.id,
            interaction.user.id,
@@ -70,211 +173,51 @@ class ReasonModal(discord.ui.Modal, title="Enter Reason"):
            reason
        )
 
+       # 🔔 DM
        try:
-           if self.action == "Kick":
-               await interaction.guild.kick(self.member, reason=reason)
-               emoji = "👢"
+           await self.member.send(f"You were {self.action} in {interaction.guild.name}\nReason: {reason}")
+       except Exception as e:
+           debug(f"DM failed: {e}")
 
-           elif self.action == "Ban":
-               await interaction.guild.ban(self.member, reason=reason)
-               emoji = "🔨"
-
-           elif self.action == "Mute":
-               role = discord.utils.get(interaction.guild.roles, name="Muted")
-               if role is None:
-                   role = await interaction.guild.create_role(name="Muted")
-                   for c in interaction.guild.channels:
-                       await c.set_permissions(role, send_messages=False, speak=False)
-               await self.member.add_roles(role)
-               emoji = "🔇"
-
-           elif self.action == "Unmute":
-               role = discord.utils.get(interaction.guild.roles, name="Muted")
-               if role and role in self.member.roles:
-                   await self.member.remove_roles(role)
-                   emoji = "🔊"
-               else:
-                   return await interaction.response.send_message("❌ Not muted", ephemeral=True)
-
-           elif self.action == "Unban":
-               await interaction.guild.unban(self.member)
-               emoji = "🔓"
-
-           await interaction.response.edit_message(
-               content=f"{emoji} {self.action} {self.member}\nReason: {reason}",
-               view=None
-           )
-
-           embed = discord.Embed(
-               title=f"{self.action} | Case #{case_id}",
-               color=discord.Color.red()
-           )
-           embed.add_field(name="User", value=str(self.member))
-           embed.add_field(name="Moderator", value=interaction.user.mention)
+       # 📜 LOG
+       try:
+           embed = discord.Embed(title=f"{self.action.upper()} | Case #{cid}", color=discord.Color.red())
+           embed.add_field(name="User", value=self.member)
+           embed.add_field(name="Mod", value=interaction.user)
            embed.add_field(name="Reason", value=reason)
 
-           await send_log(interaction.guild, embed)
+           log = interaction.guild.get_channel(LOG_CHANNEL_ID)
+           if log:
+               await log.send(embed=embed)
+           else:
+               debug("Log channel not found")
 
        except Exception as e:
-           await interaction.response.send_message(f"❌ Error: {e}", ephemeral=True)
+           debug(f"Logging failed: {e}")
 
-# -------------------------
-# DROPDOWN
-# -------------------------
-class ModSelect(discord.ui.Select):
-   def __init__(self, view):
-       self.view_ref = view
-       super().__init__(placeholder="Select action...", options=[
-           discord.SelectOption(label="Kick"),
-           discord.SelectOption(label="Ban"),
-           discord.SelectOption(label="Mute"),
-           discord.SelectOption(label="Unmute"),
-       ])
+       await interaction.response.send_message(f"✅ {self.action} done (Case #{cid})", ephemeral=True)
 
-   async def callback(self, interaction: discord.Interaction):
-       self.view_ref.action = self.values[0]
-       await interaction.response.send_message(f"Selected: {self.values[0]}", ephemeral=True)
-
-# -------------------------
-# VIEW
-# -------------------------
-class ModView(discord.ui.View):
-   def __init__(self, member, cog):
-       super().__init__(timeout=60)
-       self.member = member
-       self.cog = cog
-       self.action = None
-
-       self.add_item(ModSelect(self))
-
-   async def interaction_check(self, interaction: discord.Interaction):
-       if not interaction.user.guild_permissions.administrator:
-           await interaction.response.send_message("❌ Admin only", ephemeral=True)
-           return False
-       return True
-
-   @discord.ui.button(label="Confirm", style=discord.ButtonStyle.green)
-   async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button):
-       if not self.action:
-           return await interaction.response.send_message("❌ Select action first", ephemeral=True)
-
-       await interaction.response.send_modal(
-           ReasonModal(self.action, self.member, self.cog)
-       )
-
-   @discord.ui.button(label="Cancel", style=discord.ButtonStyle.red)
-   async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
-       await interaction.message.delete()
-
-# -------------------------
-# COG
-# -------------------------
+# ---------------- COG ----------------
 class Mod(commands.Cog):
    def __init__(self, bot):
        self.bot = bot
 
    def is_admin(self, user):
-       return user.guild_permissions.administrator
+       return user.guild_permissions.manage_messages
 
-   # 🎛 PANEL
-   @commands.command()
-   async def modpanel(self, ctx, member: discord.Member = None):
-       if not self.is_admin(ctx.author):
-           return await ctx.send("❌ Admin only")
+   @app_commands.command(name="modpanel")
+   async def panel(self, interaction: discord.Interaction, member: discord.Member):
+       debug(f"Modpanel opened by {interaction.user} for {member}")
 
-       if not member:
-           return await ctx.send("❌ Usage: !modpanel @user")
-
-       embed = discord.Embed(
-           title="🎛 Moderation Panel",
-           description=f"Target: {member.mention}",
-           color=discord.Color.blurple()
-       )
-
-       await ctx.send(embed=embed, view=ModView(member, self))
-
-   # 🔓 UNBAN
-   @app_commands.command(name="unban")
-   async def unban(self, interaction: discord.Interaction, user_id: str):
-       user_id = user_id.replace("<@", "").replace(">", "").replace("!", "")
-       user = await self.bot.fetch_user(int(user_id))
-
-       await interaction.response.send_modal(
-           ReasonModal("Unban", user, self)
-       )
-
-   # 🔍 BANLIST
-   @app_commands.command(name="banlist")
-   async def banlist(self, interaction: discord.Interaction):
-       bans = [b async for b in interaction.guild.bans()]
-       desc = "\n".join([f"{b.user} ({b.user.id})" for b in bans[:10]]) or "No bans"
+       if not self.is_admin(interaction.user):
+           return await interaction.response.send_message("❌ No permission", ephemeral=True)
 
        await interaction.response.send_message(
-           embed=discord.Embed(title="Ban List", description=desc),
+           f"🎛 Panel for {member}",
+           view=ModPanel(self, member),
            ephemeral=True
        )
 
-   # 🔍 CASE
-   @app_commands.command(name="case")
-   async def case(self, interaction: discord.Interaction, case_id: int):
-       data = load_cases()
-       gid = str(interaction.guild.id)
-
-       if gid not in data or str(case_id) not in data[gid]["cases"]:
-           return await interaction.response.send_message("❌ Case not found", ephemeral=True)
-
-       case = data[gid]["cases"][str(case_id)]
-
-       embed = discord.Embed(title=f"Case #{case_id}")
-       embed.add_field(name="User", value=f"<@{case['user']}>")
-       embed.add_field(name="Moderator", value=f"<@{case['moderator']}>")
-       embed.add_field(name="Action", value=case["action"])
-       embed.add_field(name="Reason", value=case["reason"])
-
-       await interaction.response.send_message(embed=embed, ephemeral=True)
-
-   # 📜 CASES
-   @app_commands.command(name="cases")
-   async def cases(self, interaction: discord.Interaction, user: discord.Member):
-       data = load_cases()
-       gid = str(interaction.guild.id)
-
-       if gid not in data:
-           return await interaction.response.send_message("No cases", ephemeral=True)
-
-       lines = []
-       for cid, case in data[gid]["cases"].items():
-           if case["user"] == user.id:
-               lines.append(f"#{cid} → {case['action']}")
-
-       if not lines:
-           return await interaction.response.send_message("No cases for user", ephemeral=True)
-
-       await interaction.response.send_message(
-           embed=discord.Embed(title=f"Cases for {user}", description="\n".join(lines[:10])),
-           ephemeral=True
-       )
-
-   # 👤 USER DASHBOARD
-   @app_commands.command(name="user")
-   async def user_dashboard(self, interaction: discord.Interaction, user: discord.Member):
-       data = load_cases()
-       gid = str(interaction.guild.id)
-
-       embed = discord.Embed(title=f"{user}", color=discord.Color.blurple())
-       embed.add_field(name="ID", value=user.id)
-       embed.add_field(name="Joined", value=user.joined_at.strftime("%Y-%m-%d"))
-
-       if gid in data:
-           user_cases = [c for c in data[gid]["cases"].values() if c["user"] == user.id]
-           embed.add_field(name="Cases", value=str(len(user_cases)))
-       else:
-           embed.add_field(name="Cases", value="0")
-
-       await interaction.response.send_message(embed=embed, ephemeral=True)
-
-# -------------------------
-# SETUP
-# -------------------------
+# ---------------- SETUP ----------------
 async def setup(bot):
    await bot.add_cog(Mod(bot))
