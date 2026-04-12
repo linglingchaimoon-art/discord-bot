@@ -4,109 +4,108 @@ from discord import app_commands
 import os
 from motor.motor_asyncio import AsyncIOMotorClient
 
-ALLOWED_CHANNEL_ID = 1442896372260016276
 MONGO_URI = os.getenv("MONGO_URI")
+ALLOWED_CHANNEL_ID = 1442896372260016276  # CHANGE THIS
 
 
-class ReactionRoles(commands.Cog):
+# ================= BUTTON VIEW =================
+class RoleView(discord.ui.View):
+   def __init__(self, roles):
+       super().__init__(timeout=None)
+       self.roles = roles
+
+   async def handle_role(self, interaction: discord.Interaction, role_id):
+       role = interaction.guild.get_role(role_id)
+
+       if not role:
+           return await interaction.response.send_message("❌ Role not found", ephemeral=True)
+
+       if role in interaction.user.roles:
+           await interaction.user.remove_roles(role)
+           await interaction.response.send_message(f"❌ Removed {role.name}", ephemeral=True)
+       else:
+           await interaction.user.add_roles(role)
+           await interaction.response.send_message(f"✅ Added {role.name}", ephemeral=True)
+
+   # ================= BUTTONS =================
+
+   @discord.ui.button(label="Phasmophobia", emoji="👻", style=discord.ButtonStyle.primary)
+   async def phasmo(self, interaction: discord.Interaction, button: discord.ui.Button):
+       await self.handle_role(interaction, self.roles["👻"])
+
+   @discord.ui.button(label="PUBG", emoji="🔫", style=discord.ButtonStyle.success)
+   async def pubg(self, interaction: discord.Interaction, button: discord.ui.Button):
+       await self.handle_role(interaction, self.roles["🔫"])
+
+   @discord.ui.button(label="Rocket League", emoji="🚗", style=discord.ButtonStyle.danger)
+   async def rl(self, interaction: discord.Interaction, button: discord.ui.Button):
+       await self.handle_role(interaction, self.roles["🚗"])
+
+   @discord.ui.button(label="Minecraft", emoji="⛏️", style=discord.ButtonStyle.secondary)
+   async def mc(self, interaction: discord.Interaction, button: discord.ui.Button):
+       await self.handle_role(interaction, self.roles["⛏️"])
+
+
+# ================= COG =================
+class ButtonRoles(commands.Cog):
    def __init__(self, bot):
        self.bot = bot
 
        self.client = AsyncIOMotorClient(MONGO_URI)
        self.db = self.client["discord_bot"]
-       self.collection = self.db["reaction_roles"]
+       self.collection = self.db["button_roles"]
 
-   # ================= CREATE =================
-   @app_commands.command(name="rr_create", description="Create panel")
-   async def rr_create(self, interaction: discord.Interaction):
+   # ================= CREATE PANEL =================
+   @app_commands.command(name="panel", description="Create button role panel")
+   async def panel(self, interaction: discord.Interaction):
 
-       await interaction.response.defer()  # ✅ ALWAYS FIRST
+       await interaction.response.defer()
 
-       try:
-           embed = discord.Embed(
-               title="🎮 HEAVEN GAMING ROLES",
-               description=(
-                   "━━━━━━━━━━━━━━━━━━━━━━\n\n"
-                   "👻 Phasmophobia\n"
-                   "🔫 PUBG\n"
-                   "🚗 Rocket League\n"
-                   "⛏️ Minecraft\n\n"
-                   "━━━━━━━━━━━━━━━━━━━━━━\n"
-                   "✨ React to get roles\n"
-                   "❌ Remove reaction to remove"
-               ),
-               color=0x5865F2
-           )
+       if interaction.channel.id != ALLOWED_CHANNEL_ID:
+           return await interaction.followup.send("❌ Wrong channel", ephemeral=True)
 
-           msg = await interaction.followup.send(embed=embed)
+       embed = discord.Embed(
+           title="🎮 HEAVEN GAMING ROLES",
+           description=(
+               "━━━━━━━━━━━━━━━━━━━━━━\n\n"
+               "👻 Phasmophobia\n"
+               "🔫 PUBG\n"
+               "🚗 Rocket League\n"
+               "⛏️ Minecraft\n\n"
+               "━━━━━━━━━━━━━━━━━━━━━━\n"
+               "✨ Click buttons to get roles\n"
+               "❌ Click again to remove"
+           ),
+           color=0x5865F2
+       )
 
-           await self.collection.insert_one({
-               "channel_id": str(interaction.channel.id),
-               "message_id": str(msg.id),
-               "roles": {}
-           })
+       # 🔥 YOU MUST EDIT THESE ROLE IDS
+       roles = {
+           "👻": 111111111111111111,
+           "🔫": 222222222222222222,
+           "🚗": 333333333333333333,
+           "⛏️": 444444444444444444
+       }
 
-       except Exception as e:
-           print("CREATE ERROR:", e)
-           await interaction.followup.send(f"❌ {e}")
+       view = RoleView(roles)
 
-   # ================= ADD =================
-   @app_commands.command(name="rr_add", description="Add role")
-   async def rr_add(self, interaction: discord.Interaction, emoji: str, role: discord.Role):
+       msg = await interaction.followup.send(embed=embed, view=view)
 
-       await interaction.response.defer(ephemeral=True)
+       # SAVE FOR PERSIST
+       await self.collection.insert_one({
+           "message_id": msg.id,
+           "roles": roles
+       })
 
-       try:
-           data = await self.collection.find_one(
-               {"channel_id": str(interaction.channel.id)},
-               sort=[("_id", -1)]
-           )
-
-           if not data:
-               return await interaction.followup.send("❌ Create panel first")
-
-           roles = data.get("roles", {})
-           roles[emoji] = role.id
-
-           await self.collection.update_one(
-               {"_id": data["_id"]},
-               {"$set": {"roles": roles}}
-           )
-
-           msg = await interaction.channel.fetch_message(int(data["message_id"]))
-           await msg.add_reaction(emoji)
-
-           await interaction.followup.send("✅ Added")
-
-       except Exception as e:
-           print("ADD ERROR:", e)
-           await interaction.followup.send(f"❌ {e}")
-
-   # ================= REACTION ADD =================
+   # ================= PERSIST BUTTONS =================
    @commands.Cog.listener()
-   async def on_raw_reaction_add(self, payload):
+   async def on_ready(self):
+       print("Button system ready")
 
-       try:
-           if payload.user_id == self.bot.user.id:
-               return
-
-           data = await self.collection.find_one({"message_id": str(payload.message_id)})
-           if not data:
-               return
-
-           guild = self.bot.get_guild(payload.guild_id)
-           member = guild.get_member(payload.user_id)
-
-           emoji = str(payload.emoji)
-
-           if emoji in data["roles"]:
-               role = guild.get_role(data["roles"][emoji])
-               if role:
-                   await member.add_roles(role)
-
-       except Exception as e:
-           print("REACTION ERROR:", e)
+       # Reload all panels
+       async for panel in self.collection.find():
+           self.bot.add_view(RoleView(panel["roles"]))
 
 
 async def setup(bot):
-   await bot.add_cog(ReactionRoles(bot))
+   await bot.add_cog(ButtonRoles(bot))
