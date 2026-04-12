@@ -4,8 +4,10 @@ from discord import app_commands
 import os
 from motor.motor_asyncio import AsyncIOMotorClient
 
-# 🔧 CONFIG
-ALLOWED_CHANNEL_ID = 1493012783942598819  # CHANGE THIS
+# =====================================================
+# ⚙️ CONFIG (EDIT THIS)
+# =====================================================
+ALLOWED_CHANNEL_ID = 123456789012345678  # 🔥 CHANGE THIS
 MONGO_URI = os.getenv("MONGO_URI")
 
 
@@ -13,6 +15,7 @@ class ReactionRoles(commands.Cog):
    def __init__(self, bot):
        self.bot = bot
 
+       # 🔥 DATABASE
        self.client = AsyncIOMotorClient(MONGO_URI)
        self.db = self.client["discord_bot"]
        self.collection = self.db["reaction_roles"]
@@ -29,13 +32,11 @@ class ReactionRoles(commands.Cog):
    @app_commands.command(name="rr_create", description="Create role panel")
    async def rr_create(self, interaction: discord.Interaction):
 
-       await interaction.response.defer()
-
        if not self.is_admin(interaction.user):
-           return await interaction.followup.send("❌ No permission", ephemeral=True)
+           return await interaction.response.send_message("❌ No permission", ephemeral=True)
 
        if not self.check_channel(interaction):
-           return await interaction.followup.send("❌ Wrong channel", ephemeral=True)
+           return await interaction.response.send_message("❌ Wrong channel", ephemeral=True)
 
        description = (
            "━━━━━━━━━━━━━━━━━━━━━━\n\n"
@@ -54,16 +55,19 @@ class ReactionRoles(commands.Cog):
            color=0x5865F2
        )
 
-       msg = await interaction.followup.send(embed=embed)
+       # ✅ SEND PANEL INSTANT
+       await interaction.response.send_message(embed=embed)
+       msg = await interaction.original_response()
 
-       # Save as latest panel
+       # ✅ SAVE PANEL
        await self.collection.insert_one({
            "channel_id": str(interaction.channel.id),
            "message_id": str(msg.id),
            "roles": {}
        })
 
-       await interaction.followup.send("✅ Panel created", ephemeral=True)
+       # ✅ CLEAN CONFIRMATION
+       await interaction.followup.send("✅ Panel ready", ephemeral=True)
 
    # =====================================================
    # ➕ ADD ROLE (NO ID)
@@ -71,19 +75,17 @@ class ReactionRoles(commands.Cog):
    @app_commands.command(name="rr_add", description="Add emoji role")
    async def rr_add(self, interaction: discord.Interaction, emoji: str, role: discord.Role):
 
-       await interaction.response.defer()
-
        if not self.is_admin(interaction.user):
-           return await interaction.followup.send("❌ No permission", ephemeral=True)
+           return await interaction.response.send_message("❌ No permission", ephemeral=True)
 
-       # 🔥 GET LATEST PANEL IN CHANNEL
+       # 🔥 GET LATEST PANEL
        data = await self.collection.find_one(
            {"channel_id": str(interaction.channel.id)},
            sort=[("_id", -1)]
        )
 
        if not data:
-           return await interaction.followup.send("❌ No panel found. Use /rr_create first", ephemeral=True)
+           return await interaction.response.send_message("❌ Create panel first", ephemeral=True)
 
        roles = data["roles"]
        roles[emoji] = role.id
@@ -93,10 +95,40 @@ class ReactionRoles(commands.Cog):
            {"$set": {"roles": roles}}
        )
 
+       # ADD REACTION TO MESSAGE
        msg = await interaction.channel.fetch_message(int(data["message_id"]))
        await msg.add_reaction(emoji)
 
-       await interaction.followup.send("✅ Role added", ephemeral=True)
+       await interaction.response.send_message("✅ Role added", ephemeral=True)
+
+   # =====================================================
+   # ➖ REMOVE ROLE
+   # =====================================================
+   @app_commands.command(name="rr_remove", description="Remove emoji role")
+   async def rr_remove(self, interaction: discord.Interaction, emoji: str):
+
+       if not self.is_admin(interaction.user):
+           return await interaction.response.send_message("❌ No permission", ephemeral=True)
+
+       data = await self.collection.find_one(
+           {"channel_id": str(interaction.channel.id)},
+           sort=[("_id", -1)]
+       )
+
+       if not data:
+           return await interaction.response.send_message("❌ No panel found", ephemeral=True)
+
+       roles = data["roles"]
+
+       if emoji in roles:
+           del roles[emoji]
+
+       await self.collection.update_one(
+           {"_id": data["_id"]},
+           {"$set": {"roles": roles}}
+       )
+
+       await interaction.response.send_message("✅ Removed", ephemeral=True)
 
    # =====================================================
    # 🔁 REACTION ADD
@@ -144,5 +176,8 @@ class ReactionRoles(commands.Cog):
                await member.remove_roles(role)
 
 
+# =====================================================
+# 🔧 SETUP
+# =====================================================
 async def setup(bot):
    await bot.add_cog(ReactionRoles(bot))
