@@ -5,9 +5,9 @@ import os
 from motor.motor_asyncio import AsyncIOMotorClient
 
 # =====================================================
-# ⚙️ CONFIG (EDIT THIS)
+# ⚙️ CONFIG
 # =====================================================
-ALLOWED_CHANNEL_ID = 1493012783942598819  # 🔥 CHANGE THIS
+ALLOWED_CHANNEL_ID = 1442896372260016276  # 🔥 CHANGE THIS
 MONGO_URI = os.getenv("MONGO_URI")
 
 
@@ -32,74 +32,94 @@ class ReactionRoles(commands.Cog):
    @app_commands.command(name="rr_create", description="Create role panel")
    async def rr_create(self, interaction: discord.Interaction):
 
-       if not self.is_admin(interaction.user):
-           return await interaction.response.send_message("❌ No permission", ephemeral=True)
+       try:
+           await interaction.response.defer()
 
-       if not self.check_channel(interaction):
-           return await interaction.response.send_message("❌ Wrong channel", ephemeral=True)
+           if not self.is_admin(interaction.user):
+               return await interaction.followup.send("❌ No permission", ephemeral=True)
 
-       description = (
-           "━━━━━━━━━━━━━━━━━━━━━━\n\n"
-           "👻 Phasmophobia\n"
-           "🔫 PUBG\n"
-           "🚗 Rocket League\n"
-           "⛏️ Minecraft\n\n"
-           "━━━━━━━━━━━━━━━━━━━━━━\n"
-           "✨ React to get roles\n"
-           "❌ Remove reaction to remove"
-       )
+           if not self.check_channel(interaction):
+               return await interaction.followup.send("❌ Wrong channel", ephemeral=True)
 
-       embed = discord.Embed(
-           title="🎮 HEAVEN GAMING ROLES",
-           description=description,
-           color=0x5865F2
-       )
+           description = (
+               "━━━━━━━━━━━━━━━━━━━━━━\n\n"
+               "👻 Phasmophobia\n"
+               "🔫 PUBG\n"
+               "🚗 Rocket League\n"
+               "⛏️ Minecraft\n\n"
+               "━━━━━━━━━━━━━━━━━━━━━━\n"
+               "✨ React to get roles\n"
+               "❌ Remove reaction to remove"
+           )
 
-       # ✅ SEND PANEL INSTANT
-       await interaction.response.send_message(embed=embed)
-       msg = await interaction.original_response()
+           embed = discord.Embed(
+               title="🎮 HEAVEN GAMING ROLES",
+               description=description,
+               color=0x5865F2
+           )
 
-       # ✅ SAVE PANEL
-       await self.collection.insert_one({
-           "channel_id": str(interaction.channel.id),
-           "message_id": str(msg.id),
-           "roles": {}
-       })
+           msg = await interaction.followup.send(embed=embed)
 
-       # ✅ CLEAN CONFIRMATION
-       await interaction.followup.send("✅ Panel ready", ephemeral=True)
+           # SAVE PANEL
+           await self.collection.insert_one({
+               "channel_id": str(interaction.channel.id),
+               "message_id": str(msg.id),
+               "roles": {}
+           })
+
+           await interaction.followup.send("✅ Panel created", ephemeral=True)
+
+       except Exception as e:
+           print("RR_CREATE ERROR:", e)
+           try:
+               await interaction.followup.send(f"❌ Error: {e}", ephemeral=True)
+           except:
+               pass
 
    # =====================================================
-   # ➕ ADD ROLE (NO ID)
+   # ➕ ADD ROLE
    # =====================================================
    @app_commands.command(name="rr_add", description="Add emoji role")
    async def rr_add(self, interaction: discord.Interaction, emoji: str, role: discord.Role):
 
-       if not self.is_admin(interaction.user):
-           return await interaction.response.send_message("❌ No permission", ephemeral=True)
+       try:
+           await interaction.response.defer(ephemeral=True)
 
-       # 🔥 GET LATEST PANEL
-       data = await self.collection.find_one(
-           {"channel_id": str(interaction.channel.id)},
-           sort=[("_id", -1)]
-       )
+           if not self.is_admin(interaction.user):
+               return await interaction.followup.send("❌ No permission")
 
-       if not data:
-           return await interaction.response.send_message("❌ Create panel first", ephemeral=True)
+           data = await self.collection.find_one(
+               {"channel_id": str(interaction.channel.id)},
+               sort=[("_id", -1)]
+           )
 
-       roles = data["roles"]
-       roles[emoji] = role.id
+           if not data:
+               return await interaction.followup.send("❌ No panel found. Use /rr_create")
 
-       await self.collection.update_one(
-           {"_id": data["_id"]},
-           {"$set": {"roles": roles}}
-       )
+           roles = data.get("roles", {})
+           roles[emoji] = role.id
 
-       # ADD REACTION TO MESSAGE
-       msg = await interaction.channel.fetch_message(int(data["message_id"]))
-       await msg.add_reaction(emoji)
+           await self.collection.update_one(
+               {"_id": data["_id"]},
+               {"$set": {"roles": roles}}
+           )
 
-       await interaction.response.send_message("✅ Role added", ephemeral=True)
+           # SAFE FETCH
+           try:
+               msg = await interaction.channel.fetch_message(int(data["message_id"]))
+               await msg.add_reaction(emoji)
+           except Exception as e:
+               print("FETCH ERROR:", e)
+               return await interaction.followup.send(f"❌ Message error: {e}")
+
+           await interaction.followup.send("✅ Role added")
+
+       except Exception as e:
+           print("RR_ADD ERROR:", e)
+           try:
+               await interaction.followup.send(f"❌ Error: {e}")
+           except:
+               pass
 
    # =====================================================
    # ➖ REMOVE ROLE
@@ -107,28 +127,38 @@ class ReactionRoles(commands.Cog):
    @app_commands.command(name="rr_remove", description="Remove emoji role")
    async def rr_remove(self, interaction: discord.Interaction, emoji: str):
 
-       if not self.is_admin(interaction.user):
-           return await interaction.response.send_message("❌ No permission", ephemeral=True)
+       try:
+           await interaction.response.defer(ephemeral=True)
 
-       data = await self.collection.find_one(
-           {"channel_id": str(interaction.channel.id)},
-           sort=[("_id", -1)]
-       )
+           if not self.is_admin(interaction.user):
+               return await interaction.followup.send("❌ No permission")
 
-       if not data:
-           return await interaction.response.send_message("❌ No panel found", ephemeral=True)
+           data = await self.collection.find_one(
+               {"channel_id": str(interaction.channel.id)},
+               sort=[("_id", -1)]
+           )
 
-       roles = data["roles"]
+           if not data:
+               return await interaction.followup.send("❌ No panel found")
 
-       if emoji in roles:
-           del roles[emoji]
+           roles = data.get("roles", {})
 
-       await self.collection.update_one(
-           {"_id": data["_id"]},
-           {"$set": {"roles": roles}}
-       )
+           if emoji in roles:
+               del roles[emoji]
 
-       await interaction.response.send_message("✅ Removed", ephemeral=True)
+           await self.collection.update_one(
+               {"_id": data["_id"]},
+               {"$set": {"roles": roles}}
+           )
+
+           await interaction.followup.send("✅ Removed")
+
+       except Exception as e:
+           print("RR_REMOVE ERROR:", e)
+           try:
+               await interaction.followup.send(f"❌ Error: {e}")
+           except:
+               pass
 
    # =====================================================
    # 🔁 REACTION ADD
@@ -136,23 +166,30 @@ class ReactionRoles(commands.Cog):
    @commands.Cog.listener()
    async def on_raw_reaction_add(self, payload):
 
-       if payload.user_id == self.bot.user.id:
-           return
+       try:
+           if payload.user_id == self.bot.user.id:
+               return
 
-       data = await self.collection.find_one({"message_id": str(payload.message_id)})
+           data = await self.collection.find_one({"message_id": str(payload.message_id)})
 
-       if not data:
-           return
+           if not data:
+               return
 
-       guild = self.bot.get_guild(payload.guild_id)
-       member = guild.get_member(payload.user_id)
+           guild = self.bot.get_guild(payload.guild_id)
+           member = guild.get_member(payload.user_id)
 
-       emoji = str(payload.emoji)
+           if not member:
+               return
 
-       if emoji in data["roles"]:
-           role = guild.get_role(data["roles"][emoji])
-           if role:
-               await member.add_roles(role)
+           emoji = str(payload.emoji)
+
+           if emoji in data["roles"]:
+               role = guild.get_role(data["roles"][emoji])
+               if role:
+                   await member.add_roles(role)
+
+       except Exception as e:
+           print("REACTION ADD ERROR:", e)
 
    # =====================================================
    # 🔁 REACTION REMOVE
@@ -160,20 +197,27 @@ class ReactionRoles(commands.Cog):
    @commands.Cog.listener()
    async def on_raw_reaction_remove(self, payload):
 
-       data = await self.collection.find_one({"message_id": str(payload.message_id)})
+       try:
+           data = await self.collection.find_one({"message_id": str(payload.message_id)})
 
-       if not data:
-           return
+           if not data:
+               return
 
-       guild = self.bot.get_guild(payload.guild_id)
-       member = guild.get_member(payload.user_id)
+           guild = self.bot.get_guild(payload.guild_id)
+           member = guild.get_member(payload.user_id)
 
-       emoji = str(payload.emoji)
+           if not member:
+               return
 
-       if emoji in data["roles"]:
-           role = guild.get_role(data["roles"][emoji])
-           if role:
-               await member.remove_roles(role)
+           emoji = str(payload.emoji)
+
+           if emoji in data["roles"]:
+               role = guild.get_role(data["roles"][emoji])
+               if role:
+                   await member.remove_roles(role)
+
+       except Exception as e:
+           print("REACTION REMOVE ERROR:", e)
 
 
 # =====================================================
