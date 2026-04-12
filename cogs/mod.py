@@ -189,9 +189,6 @@ class Mod(commands.Cog):
        await ctx.guild.unban(user)
        await ctx.send(f"🔓 {user} unbanned")
 
-       @commands.command()
-       async def play(self, ctx, *, query):
-              await ctx.send(f"Playing: {query}")
 # -------------------------
 # SETUP
 # -------------------------

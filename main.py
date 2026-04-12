@@ -1,17 +1,12 @@
 
 import asyncio
-import itertools
 import json
 import logging
 import os
-import threading
 
 import discord
-from discord.ext import commands, tasks
+from discord.ext import commands
 from dotenv import load_dotenv
-
-from cogs.music import MusicControls
-from web import run_web
 
 logging.getLogger("discord").setLevel(logging.CRITICAL)
 logging.basicConfig(level=logging.INFO)
@@ -40,15 +35,6 @@ intents.voice_states = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 bot.remove_command("help")
 
-statuses = itertools.cycle([
-    discord.Activity(type=discord.ActivityType.listening, name="!help | !blackjack"),
-])
-
-
-@tasks.loop(seconds=10)
-async def change_status():
-    await bot.change_presence(activity=next(statuses))
-
 
 async def load_cogs():
     for filename in os.listdir("./cogs"):
@@ -61,25 +47,10 @@ async def load_cogs():
                 print(f"❌ Failed {extension}: {e}")
 
 
-# ✅ SINGLE on_ready (MERGED)
 @bot.event
 async def on_ready():
     print(f"✅ Logged in as {bot.user}")
 
-    # Add persistent views (IMPORTANT for buttons)
-    bot.add_view(MusicControls(bot.get_cog("Music")))
-
-    # Start dashboard
-    if not hasattr(bot, "web_started"):
-        threading.Thread(target=run_web, args=(bot,), daemon=True).start()
-        bot.web_started = True
-        print("🌐 Dashboard running")
-
-    # Start status loop
-    if not change_status.is_running():
-        change_status.start()
-
-    # Sync slash commands
     if not hasattr(bot, "synced"):
         try:
             synced = await bot.tree.sync()
@@ -89,7 +60,6 @@ async def on_ready():
             print(f"❌ Sync error: {e}")
 
 
-# ✅ ERROR DEBUG (VERY IMPORTANT)
 @bot.event
 async def on_command_error(ctx, error):
     print(f"ERROR: {error}")
@@ -98,7 +68,7 @@ async def on_command_error(ctx, error):
 
 async def main():
     async with bot:
-        await load_cogs()  # loads gambling.py automatically
+        await load_cogs()
         await bot.start(TOKEN)
 
 

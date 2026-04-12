@@ -199,6 +199,108 @@ class Music(commands.Cog):
        except Exception as e:
            print(f"[ERROR] Failed to send player UI: {e}")
 
+   # ---------------- JOIN COMMAND ----------------
+   @commands.command()
+   async def join(self, ctx):
+       """Join the voice channel you are in."""
+       if not ctx.author.voice:
+           return await ctx.send("❌ You must be in a voice channel first")
+
+       channel = ctx.author.voice.channel
+
+       if self.vc and self.vc.is_connected():
+           await self.vc.move_to(channel)
+       else:
+           self.vc = await channel.connect()
+
+       await ctx.send(f"✅ Joined **{channel.name}**")
+
+   # ---------------- LEAVE COMMAND ----------------
+   @commands.command()
+   async def leave(self, ctx):
+       """Disconnect from the voice channel."""
+       if not self.vc or not self.vc.is_connected():
+           return await ctx.send("❌ Not connected to a voice channel")
+
+       self.queue.clear()
+       self.is_playing = False
+       self.current = None
+       await self.vc.disconnect()
+       self.vc = None
+       await ctx.send("👋 Disconnected")
+
+   # ---------------- PAUSE COMMAND ----------------
+   @commands.command()
+   async def pause(self, ctx):
+       """Pause the current song."""
+       if self.vc and self.vc.is_playing():
+           self.vc.pause()
+           await ctx.send("⏸ Paused")
+       else:
+           await ctx.send("❌ Nothing is playing")
+
+   # ---------------- RESUME COMMAND ----------------
+   @commands.command()
+   async def resume(self, ctx):
+       """Resume the paused song."""
+       if self.vc and self.vc.is_paused():
+           self.vc.resume()
+           await ctx.send("▶️ Resumed")
+       else:
+           await ctx.send("❌ Nothing is paused")
+
+   # ---------------- SKIP COMMAND ----------------
+   @commands.command()
+   async def skip(self, ctx):
+       """Skip the current song."""
+       if self.vc and (self.vc.is_playing() or self.vc.is_paused()):
+           self.vc.stop()
+           await ctx.send("⏭ Skipped")
+       else:
+           await ctx.send("❌ Nothing is playing")
+
+   # ---------------- STOP COMMAND ----------------
+   @commands.command()
+   async def stop(self, ctx):
+       """Stop playback and clear the queue."""
+       if not self.vc or not self.vc.is_connected():
+           return await ctx.send("❌ Not connected to a voice channel")
+
+       self.queue.clear()
+       self.is_playing = False
+       self.current = None
+       self.vc.stop()
+       await ctx.send("⏹ Stopped and queue cleared")
+
+   # ---------------- QUEUE COMMAND ----------------
+   @commands.command(name="queue")
+   async def show_queue(self, ctx):
+       """Show the current song queue."""
+       if not self.current and not self.queue:
+           return await ctx.send("📭 The queue is empty")
+
+       embed = discord.Embed(title="🎵 Music Queue", color=0x1DB954)
+
+       if self.current:
+           embed.add_field(
+               name="Now Playing",
+               value=f"**{self.current['title']}**",
+               inline=False
+           )
+
+       if self.queue:
+           upcoming = "\n".join(
+               f"`{i + 1}.` {song['title']}"
+               for i, song in enumerate(self.queue[:10])
+           )
+           if len(self.queue) > 10:
+               upcoming += f"\n*...and {len(self.queue) - 10} more*"
+           embed.add_field(name="Up Next", value=upcoming, inline=False)
+       else:
+           embed.add_field(name="Up Next", value="Nothing queued", inline=False)
+
+       await ctx.send(embed=embed)
+
    # ---------------- PLAY ----------------
    @commands.command()
    async def play(self, ctx, *, query):
