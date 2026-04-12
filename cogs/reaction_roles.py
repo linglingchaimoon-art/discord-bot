@@ -6,11 +6,8 @@ import json, os
 # =====================================================
 # ⚙️ CONFIG (EDIT THIS)
 # =====================================================
-
 FILE = "reaction_roles.json"
-
-# 🔥 PUT YOUR CHANNEL ID HERE
-ALLOWED_CHANNEL_ID = 1493012783942598819
+ALLOWED_CHANNEL_ID = 1493012783942598819  # 🔥 CHANGE THIS
 
 
 # =====================================================
@@ -48,12 +45,10 @@ class ReactionRoles(commands.Cog):
        return interaction.channel.id == ALLOWED_CHANNEL_ID
 
    # =====================================================
-   # 🎨 CREATE PANEL (FIXED DOUBLE MESSAGE)
+   # 🎨 CREATE PANEL (ELITE UI)
    # =====================================================
-   @app_commands.command(name="rr_create", description="Create premium role panel")
-   async def rr_create(self, interaction: discord.Interaction, title: str, description: str):
-
-       debug(f"rr_create by {interaction.user}")
+   @app_commands.command(name="rr_create", description="Create elite role panel")
+   async def rr_create(self, interaction: discord.Interaction):
 
        if not self.is_admin(interaction.user):
            return await interaction.response.send_message("❌ No permission", ephemeral=True)
@@ -61,16 +56,28 @@ class ReactionRoles(commands.Cog):
        if not self.check_channel(interaction):
            return await interaction.response.send_message("❌ Wrong channel", ephemeral=True)
 
-       # 🎨 PREMIUM EMBED
-       embed = discord.Embed(
-           title=f"🎮 {title.upper()}",
-           description=f"━━━━━━━━━━━━━━━━━━━━━━\n{description}\n━━━━━━━━━━━━━━━━━━━━━━",
-           color=0x2b2d31
+       # 💎 ELITE DESCRIPTION
+       description = (
+           "━━━━━━━━━━━━━━━━━━━━━━\n\n"
+           "👻 **Phasmophobia**\n"
+           "🔫 **PUBG**\n"
+           "🚗 **Rocket League**\n"
+           "⛏️ **Minecraft**\n\n"
+           "━━━━━━━━━━━━━━━━━━━━━━\n"
+           "✨ React to get roles\n"
+           "❌ Remove reaction to remove"
        )
 
-       embed.set_footer(text="✨ React to get roles • Remove to remove")
+       # 🎨 ELITE EMBED
+       embed = discord.Embed(
+           title="🎮 HEAVEN GAMING ROLES",
+           description=description,
+           color=0x5865F2  # Discord blurple
+       )
 
-       # ✅ FIX: NO DOUBLE MESSAGE
+       embed.set_footer(text="Powered by HeavenBot")
+
+       # ✅ SEND (NO DOUBLE MESSAGE BUG)
        await interaction.response.send_message(embed=embed)
        msg = await interaction.original_response()
 
@@ -79,7 +86,7 @@ class ReactionRoles(commands.Cog):
        data[str(msg.id)] = {}
        save_data(data)
 
-       debug(f"Panel created: {msg.id}")
+       debug(f"Panel created {msg.id}")
 
        await interaction.followup.send(
            f"✅ Panel created\n📌 ID: `{msg.id}`",
@@ -92,8 +99,6 @@ class ReactionRoles(commands.Cog):
    @app_commands.command(name="rr_add", description="Add emoji role")
    async def rr_add(self, interaction: discord.Interaction, message_id: str, emoji: str, role: discord.Role):
 
-       debug(f"rr_add used")
-
        if not self.is_admin(interaction.user):
            return await interaction.response.send_message("❌ No permission", ephemeral=True)
 
@@ -103,7 +108,6 @@ class ReactionRoles(commands.Cog):
        data = load_data()
 
        if message_id not in data:
-           debug("Panel not found error")
            return await interaction.response.send_message("❌ Panel not found", ephemeral=True)
 
        data[message_id][emoji] = role.id
@@ -113,41 +117,13 @@ class ReactionRoles(commands.Cog):
            msg = await interaction.channel.fetch_message(int(message_id))
            await msg.add_reaction(emoji)
 
-           embed = msg.embeds[0]
-           desc = embed.description
-
-           desc += f"\n{emoji} **{role.name}**"
-
-           embed.description = desc
-
-           await msg.edit(embed=embed)
-
            debug(f"Added {emoji} -> {role.name}")
 
        except Exception as e:
            debug(f"Error: {e}")
-           return await interaction.response.send_message("❌ Failed to update message", ephemeral=True)
+           return await interaction.response.send_message("❌ Failed", ephemeral=True)
 
        await interaction.response.send_message("✅ Role added", ephemeral=True)
-
-   # =====================================================
-   # ➖ REMOVE ROLE
-   # =====================================================
-   @app_commands.command(name="rr_remove", description="Remove emoji role")
-   async def rr_remove(self, interaction: discord.Interaction, message_id: str, emoji: str):
-
-       if not self.is_admin(interaction.user):
-           return await interaction.response.send_message("❌ No permission", ephemeral=True)
-
-       data = load_data()
-
-       if message_id not in data or emoji not in data[message_id]:
-           return await interaction.response.send_message("❌ Not found", ephemeral=True)
-
-       del data[message_id][emoji]
-       save_data(data)
-
-       await interaction.response.send_message("✅ Removed", ephemeral=True)
 
    # =====================================================
    # 🔁 REACTION ADD
@@ -173,7 +149,7 @@ class ReactionRoles(commands.Cog):
            role = guild.get_role(data[msg_id][emoji])
            if role:
                await member.add_roles(role)
-               debug(f"Added role {role.name}")
+               debug(f"Gave {role.name}")
 
    # =====================================================
    # 🔁 REACTION REMOVE
@@ -196,7 +172,7 @@ class ReactionRoles(commands.Cog):
            role = guild.get_role(data[msg_id][emoji])
            if role:
                await member.remove_roles(role)
-               debug(f"Removed role {role.name}")
+               debug(f"Removed {role.name}")
 
 
 # =====================================================
