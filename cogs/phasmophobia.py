@@ -3,6 +3,28 @@ from discord.ext import commands
 from discord import app_commands
 import difflib
 
+# ================= SETTINGS =================
+PANEL_TIMEOUT = 60  # ⏱ CHANGE TIME HERE (seconds)
+
+# ================= SESSION STORAGE =================
+active_panels = {}  # user_id : message
+
+# ================= BASE VIEW =================
+class BaseView(discord.ui.View):
+    def __init__(self, timeout=PANEL_TIMEOUT):
+        super().__init__(timeout=timeout)
+        self.message = None
+
+    async def on_timeout(self):
+        for item in self.children:
+            item.disabled = True
+
+        try:
+            if self.message:
+                await self.message.edit(view=self)
+        except:
+            pass
+
 # ================= DATA =================
 GHOSTS = {
   "Banshee": ["Fingerprints","Orbs","DOTS"],
@@ -78,9 +100,9 @@ PAGE1 = ghost_list[:14]
 PAGE2 = ghost_list[14:]
 
 # ================= MAIN VIEW =================
-class MainView(discord.ui.View):
+class MainView(BaseView):
   def __init__(self):
-      super().__init__(timeout=None)
+      super().__init__()
       self.add_item(MainDropdown(self))
 
 # ================= MAIN DROPDOWN =================
@@ -108,7 +130,6 @@ class MainDropdown(discord.ui.Select):
       if choice == "Ghost Menu":
           self.parent_view.add_item(GhostSelect(page=1))
           self.parent_view.add_item(NextPageButton())
-          self.parent_view.add_item(SearchButton())
 
       elif choice == "Journal":
           self.parent_view.add_item(EvidenceSelect())
@@ -156,7 +177,6 @@ class NextPageButton(discord.ui.Button):
       view.add_item(MainDropdown(view))
       view.add_item(GhostSelect(page=2))
       view.add_item(PrevPageButton())
-      view.add_item(SearchButton())
 
       await interaction.followup.edit_message(interaction.message.id, view=view)
 
@@ -171,55 +191,8 @@ class PrevPageButton(discord.ui.Button):
       view.add_item(MainDropdown(view))
       view.add_item(GhostSelect(page=1))
       view.add_item(NextPageButton())
-      view.add_item(SearchButton())
 
       await interaction.followup.edit_message(interaction.message.id, view=view)
-
-# ================= SEARCH =================
-class SearchButton(discord.ui.Button):
-  def __init__(self):
-      super().__init__(label="🔍 Search", style=discord.ButtonStyle.primary)
-
-  async def callback(self, interaction):
-      await interaction.response.send_modal(GhostSearchModal())
-
-# ✅ ONLY THING CHANGED HERE
-class GhostSearchModal(discord.ui.Modal, title="Search Ghost"):
-  search = discord.ui.TextInput(label="Ghost name")
-
-  async def on_submit(self, interaction):
-      query = self.search.value.lower()
-
-      # ================= TYPO FIX =================
-      ghost_names = list(GHOSTS.keys())
-
-      # Try normal match first
-      ghost = next((g for g in ghost_names if query in g.lower()), None)
-
-      # If not found → use fuzzy matching
-      if not ghost:
-          matches = difflib.get_close_matches(query, ghost_names, n=1, cutoff=0.5)
-          ghost = matches[0] if matches else None
-
-      # ================= NOT FOUND =================
-      if not ghost:
-          return await interaction.response.send_message(
-              "❌ Ghost not found",
-              ephemeral=True,
-              delete_after=10  # auto delete error
-          )
-
-      # ================= EMBED =================
-      embed = discord.Embed(title=f"👻 {ghost}", color=0x6C5CE7)
-      embed.add_field(name="🧪 Evidence", value="\n".join(GHOSTS[ghost]), inline=False)
-      embed.add_field(name="🧠 Identify", value="\n".join(IDENTIFY[ghost]), inline=False)
-
-      # ================= SEND + AUTO DELETE =================
-      await interaction.response.send_message(
-          embed=embed,
-          ephemeral=True,
-          delete_after=30  # 👈 DELETE AFTER 30 SECONDS
-      )
 
 # ================= OTHER =================
 class EvidenceSelect(discord.ui.Select):
@@ -245,13 +218,33 @@ class BehaviorSelect(discord.ui.Select):
       await interaction.followup.edit_message(interaction.message.id, embed=embed, view=self.view)
 
 # ================= PANEL =================
-class PanelView(discord.ui.View):
+class PanelView(BaseView):
   def __init__(self):
-      super().__init__(timeout=None)
+      super().__init__()
 
   @discord.ui.button(label="🎛 Open Panel", style=discord.ButtonStyle.success)
   async def open_panel(self, interaction, button):
-      await interaction.response.send_message("Select option below 👇", view=MainView(), ephemeral=True)
+
+      # 🔁 REMOVE OLD PANEL (1 per user)
+      old_msg = active_panels.get(interaction.user.id)
+      if old_msg:
+          try:
+              await old_msg.delete()
+          except:
+              pass
+
+      view = MainView()
+
+      await interaction.response.send_message(
+          "Select option below 👇",
+          view=view,
+          ephemeral=True
+      )
+
+      msg = await interaction.original_response()
+      view.message = msg
+
+      active_panels[interaction.user.id] = msg
 
 # ================= CHANNEL =================
 class ChannelSelect(discord.ui.ChannelSelect):
@@ -262,17 +255,15 @@ class ChannelSelect(discord.ui.ChannelSelect):
       await interaction.response.defer(ephemeral=True)
       channel = interaction.guild.get_channel(self.values[0].id)
 
-      embed = discord.Embed(title="👻 Phasmophobia Panel By TJ", description="Manage your ghost-hunting experience with ease. Use the panel below to get started.👇")
-      role = discord.utils.get(interaction.guild.roles, name="Phasmophobia")
+      embed = discord.Embed(title="👻 Phasmophobia Panel By TJ")
 
-      await channel.send(
-         content=role.mention if role else None,
-         embed=embed,
-            view=PanelView()
-      )
+      view = PanelView()
+      msg = await channel.send(embed=embed, view=view)
+      view.message = msg
+
       await interaction.followup.send("✅ Sent", ephemeral=True)
 
-class ChannelSelectView(discord.ui.View):
+class ChannelSelectView(BaseView):
   def __init__(self):
       super().__init__()
       self.add_item(ChannelSelect())
@@ -284,7 +275,15 @@ class Phasmophobia(commands.Cog):
 
   @app_commands.command(name="crghostpanel")
   async def panel(self, interaction):
-      await interaction.response.send_message("Select channel:", view=ChannelSelectView(), ephemeral=True)
+      view = ChannelSelectView()
+
+      await interaction.response.send_message(
+          "Select channel:",
+          view=view,
+          ephemeral=True
+      )
+
+      view.message = await interaction.original_response()
 
   @commands.Cog.listener()
   async def on_ready(self):
