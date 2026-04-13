@@ -72,14 +72,14 @@ class RoleView(discord.ui.View):
            self.add_item(RoleButton(r))
 
 
-# ===== CHANNEL SELECT =====
+# ===== CHANNEL SELECT (SEARCHABLE) =====
 class ChannelSelect(discord.ui.ChannelSelect):
    def __init__(self, data):
        super().__init__(
-           placeholder="Select channel",
+           placeholder="🔍 Search or select a channel...",
            min_values=1,
-           max_values=1,
-           channel_types=[discord.ChannelType.text]
+           max_values=1
+           # ✅ NO FILTER → enables full search
        )
        self.data = data
 
@@ -89,6 +89,9 @@ class ChannelSelect(discord.ui.ChannelSelect):
        try:
            raw = self.values[0]
            channel = interaction.guild.get_channel(raw.id)
+
+           if not channel:
+               raise Exception("Channel not found")
 
            embed = discord.Embed(
                title=self.data["title"],
@@ -130,7 +133,7 @@ class ChannelSelect(discord.ui.ChannelSelect):
            })
 
            await interaction.followup.send(
-               f"✅ Panel created in #{channel.name}",
+               f"✅ Panel sent to #{channel.name}",
                delete_after=3
            )
 
@@ -190,7 +193,7 @@ class PanelModal(discord.ui.Modal, title="Create Panel"):
        }
 
        await interaction.response.send_message(
-           "📍 Select channel:",
+           "📍 Select a channel:",
            view=ChannelView(data),
            ephemeral=True
        )
@@ -211,7 +214,7 @@ class PanelGUI(commands.Cog):
 
    @commands.Cog.listener()
    async def on_ready(self):
-       print("✅ PANEL SYSTEM READY")
+       print("✅ PANEL SYSTEM READY (SEARCH ENABLED)")
 
        async for panel in self.collection.find():
            self.bot.add_view(RoleView(panel["roles"]))
