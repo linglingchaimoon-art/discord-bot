@@ -182,37 +182,23 @@ class SearchButton(discord.ui.Button):
   async def callback(self, interaction):
       await interaction.response.send_modal(GhostSearchModal())
 
+# ✅ ONLY THING CHANGED HERE
 class GhostSearchModal(discord.ui.Modal, title="Search Ghost"):
   search = discord.ui.TextInput(label="Ghost name")
 
   async def on_submit(self, interaction):
       query = self.search.value.lower()
-      results = [g for g in GHOSTS if query in g.lower()][:25]
 
-      if not results:
+      ghost = next((g for g in GHOSTS if query in g.lower()), None)
+
+      if not ghost:
           return await interaction.response.send_message("❌ Not found", ephemeral=True)
 
-      view = discord.ui.View()
-      view.add_item(SearchResultSelect(results))
+      embed = discord.Embed(title=f"👻 {ghost}", color=0x6C5CE7)
+      embed.add_field(name="🧪 Evidence", value="\n".join(GHOSTS[ghost]), inline=False)
+      embed.add_field(name="🧠 Identify", value="\n".join(IDENTIFY[ghost]), inline=False)
 
-      await interaction.response.send_message("Results:", view=view, ephemeral=True)
-
-class SearchResultSelect(discord.ui.Select):
-  def __init__(self, results):
-      options = [discord.SelectOption(label=g) for g in results]
-      super().__init__(placeholder="Select ghost...", options=options)
-
-  async def callback(self, interaction):
-      await interaction.response.defer()
-
-      name = self.values[0]
-
-      embed = discord.Embed(title=f"👻 {name}", color=0x6C5CE7)
-      embed.add_field(name="🧪 Evidence", value="\n".join(GHOSTS[name]), inline=False)
-      embed.add_field(name="🧠 Identify", value="\n".join(IDENTIFY[name]), inline=False)
-
-      await interaction.message.edit(content=None, embed=embed, view=None)
-      await interaction.message.delete(delay=60)
+      await interaction.response.send_message(embed=embed, ephemeral=True)
 
 # ================= OTHER =================
 class EvidenceSelect(discord.ui.Select):
@@ -255,7 +241,7 @@ class ChannelSelect(discord.ui.ChannelSelect):
       await interaction.response.defer(ephemeral=True)
       channel = interaction.guild.get_channel(self.values[0].id)
 
-      embed = discord.Embed(title="👻 Phasmophobia Panel By TJ", description="This panel is designed to assist investigators in locating and identifying ghosts. Use the buttons below :point_down:")
+      embed = discord.Embed(title="👻 Phasmophobia Panel By TJ", description="Use the panel below 👇")
       await channel.send(embed=embed, view=PanelView())
       await interaction.followup.send("✅ Sent", ephemeral=True)
 
