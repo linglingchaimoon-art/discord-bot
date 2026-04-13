@@ -1,43 +1,119 @@
 import discord
 from discord.ext import commands
-import difflib  # 🔥 used for smart suggestions
+import difflib
 
-# 🔥 CHANGE THIS
-ALLOWED_CHANNEL_ID = 123456789012345678
+ALLOWED_CHANNEL_ID = 1493062544863264869  # 🔥 CHANGE THIS
 
 
-# ================= GHOST DATABASE =================
+# ================= FULL GHOST DATABASE =================
 GHOSTS = {
-   "jhinn": {
-       "description": "A territorial ghost that becomes faster when far away.",
-       "evidence": ["EMF Level 5", "Freezing Temperatures", "Fingerprints"],
-       "strength": "Moves faster when far away from players.",
-       "weakness": "Turning off the breaker slows it down.",
-       "identify": "Speed increases at distance, normal speed up close."
+   "spirit": {
+       "evidence": ["EMF Level 5", "Spirit Box", "Ghost Writing"],
+       "strength": "None",
+       "weakness": "Smudge sticks stop it longer",
+       "identify": "Long delay between hunts after smudge"
    },
-
+   "wraith": {
+       "evidence": ["EMF Level 5", "Spirit Box", "DOTS"],
+       "strength": "Can teleport to players",
+       "weakness": "Does not step in salt",
+       "identify": "No footprints in salt"
+   },
+   "phantom": {
+       "evidence": ["Spirit Box", "Fingerprints", "DOTS"],
+       "strength": "Looking at it reduces sanity faster",
+       "weakness": "Disappears in photos",
+       "identify": "Invisible in ghost photo"
+   },
+   "poltergeist": {
+       "evidence": ["Spirit Box", "Fingerprints", "Ghost Writing"],
+       "strength": "Throws many objects",
+       "weakness": "Useless in empty rooms",
+       "identify": "Multi-object throws"
+   },
+   "banshee": {
+       "evidence": ["Fingerprints", "Ghost Orbs", "DOTS"],
+       "strength": "Targets one player",
+       "weakness": "Afraid of crucifix",
+       "identify": "Only hunts one player"
+   },
+   "jinn": {
+       "evidence": ["EMF Level 5", "Freezing Temps", "Fingerprints"],
+       "strength": "Fast when far away",
+       "weakness": "Breaker off = slower",
+       "identify": "Speed depends on breaker"
+   },
+   "mare": {
+       "evidence": ["Spirit Box", "Ghost Orbs", "Ghost Writing"],
+       "strength": "More active in dark",
+       "weakness": "Less active in light",
+       "identify": "Turns lights off often"
+   },
    "revenant": {
-       "description": "A slow but extremely fast hunter when it sees you.",
-       "evidence": ["Ghost Writing", "Freezing Temperatures", "Ghost Orbs"],
-       "strength": "Moves VERY fast when it has line of sight.",
-       "weakness": "Very slow when not chasing.",
-       "identify": "Huge speed change when it sees you."
+       "evidence": ["Ghost Writing", "Freezing Temps", "Ghost Orbs"],
+       "strength": "Very fast when chasing",
+       "weakness": "Very slow otherwise",
+       "identify": "Huge speed difference"
    },
-
-   "demon": {
-       "description": "An aggressive ghost that hunts more often.",
-       "evidence": ["Freezing Temperatures", "Ghost Writing", "Ultraviolet"],
-       "strength": "Can hunt very frequently.",
-       "weakness": "Crucifix has increased range.",
-       "identify": "Early hunts and frequent hunts."
-   },
-
    "shade": {
-       "description": "A shy ghost that avoids people.",
-       "evidence": ["EMF Level 5", "Ghost Writing", "Freezing Temperatures"],
-       "strength": "Hard to find evidence.",
-       "weakness": "Won’t hunt if players are nearby.",
-       "identify": "Very inactive when multiple players present."
+       "evidence": ["EMF Level 5", "Ghost Writing", "Freezing Temps"],
+       "strength": "Hard to find",
+       "weakness": "Won’t hunt with players nearby",
+       "identify": "Very shy behavior"
+   },
+   "demon": {
+       "evidence": ["Freezing Temps", "Ghost Writing", "Fingerprints"],
+       "strength": "Hunts often",
+       "weakness": "Crucifix range increased",
+       "identify": "Early hunts"
+   },
+   "yokai": {
+       "evidence": ["Spirit Box", "Ghost Orbs", "DOTS"],
+       "strength": "Triggered by voice",
+       "weakness": "Short hearing range",
+       "identify": "Talking causes hunts"
+   },
+   "hantu": {
+       "evidence": ["Fingerprints", "Ghost Orbs", "Freezing Temps"],
+       "strength": "Fast in cold",
+       "weakness": "Slow in warm",
+       "identify": "Speed tied to temp"
+   },
+   "raiju": {
+       "evidence": ["EMF Level 5", "Ghost Orbs", "DOTS"],
+       "strength": "Faster near electronics",
+       "weakness": "Disrupts electronics",
+       "identify": "Fast near devices"
+   },
+   "obake": {
+       "evidence": ["EMF Level 5", "Fingerprints", "Ghost Orbs"],
+       "strength": "Leaves rare prints",
+       "weakness": "Fingerprints change",
+       "identify": "Unique fingerprints"
+   },
+   "mimic": {
+       "evidence": ["Spirit Box", "Fingerprints", "Freezing Temps"],
+       "strength": "Copies other ghosts",
+       "weakness": "Always shows ghost orbs",
+       "identify": "Extra fake evidence"
+   },
+   "moroi": {
+       "evidence": ["Spirit Box", "Ghost Writing", "Freezing Temps"],
+       "strength": "Gets faster over time",
+       "weakness": "Weak to smudge",
+       "identify": "Speed increases"
+   },
+   "deogen": {
+       "evidence": ["Spirit Box", "Ghost Writing", "DOTS"],
+       "strength": "Always finds you",
+       "weakness": "Very slow close",
+       "identify": "Knows location always"
+   },
+   "thaye": {
+       "evidence": ["Ghost Writing", "Ghost Orbs", "DOTS"],
+       "strength": "Fast when young",
+       "weakness": "Gets weaker over time",
+       "identify": "Slows with age"
    }
 }
 
@@ -59,56 +135,53 @@ class Phasmophobia(commands.Cog):
        if not message.content.startswith("!"):
            return
 
-       ghost_name = message.content[1:].lower()
+       ghost_input = message.content[1:].lower()
 
-       # ===== EXACT MATCH =====
-       if ghost_name in GHOSTS:
-           ghost = GHOSTS[ghost_name]
+       # ===== AUTO MATCH =====
+       if ghost_input in GHOSTS:
+           ghost_name = ghost_input
+       else:
+           matches = difflib.get_close_matches(ghost_input, GHOSTS.keys(), n=1, cutoff=0.5)
+           if not matches:
+               return
+           ghost_name = matches[0]
 
-           embed = discord.Embed(
-               title=f"👻 {ghost_name.capitalize()}",
-               description=ghost["description"],
-               color=0x9b59b6
-           )
+       ghost = GHOSTS[ghost_name]
 
-           embed.add_field(
-               name="🧪 Evidence",
-               value="\n".join(f"• {e}" for e in ghost["evidence"]),
-               inline=False
-           )
+       # ===== NICE EMBED =====
+       embed = discord.Embed(
+           title=f"👻 {ghost_name.capitalize()}",
+           description="━━━━━━━━━━━━━━━━━━",
+           color=0x8e44ad
+       )
 
-           embed.add_field(
-               name="💪 Strength",
-               value=ghost["strength"],
-               inline=False
-           )
+       embed.add_field(
+           name="🧪 Evidence",
+           value="\n".join(f"• {e}" for e in ghost["evidence"]),
+           inline=False
+       )
 
-           embed.add_field(
-               name="⚠️ Weakness",
-               value=ghost["weakness"],
-               inline=False
-           )
+       embed.add_field(
+           name="💪 Strength",
+           value=ghost["strength"],
+           inline=False
+       )
 
-           embed.add_field(
-               name="🔍 How to Identify",
-               value=ghost["identify"],
-               inline=False
-           )
+       embed.add_field(
+           name="⚠️ Weakness",
+           value=ghost["weakness"],
+           inline=False
+       )
 
-           embed.set_footer(text="Phasmophobia Guide")
+       embed.add_field(
+           name="🔍 How to Identify",
+           value=ghost["identify"],
+           inline=False
+       )
 
-           await message.channel.send(embed=embed)
-           return
+       embed.set_footer(text="Phasmophobia Ghost Guide 👻")
 
-       # ===== SMART SUGGESTION =====
-       matches = difflib.get_close_matches(ghost_name, GHOSTS.keys(), n=1, cutoff=0.6)
-
-       if matches:
-           suggestion = matches[0]
-
-           await message.channel.send(
-               f"❌ Ghost not found.\nDid you mean: **{suggestion.capitalize()}**?"
-           )
+       await message.channel.send(embed=embed)
 
 
 async def setup(bot):
