@@ -33,7 +33,6 @@ GHOSTS = {
   "Yurei": ["Orbs","Freezing","DOTS"],
 }
 
-# ✅ YOUR IDENTIFY (UNCHANGED)
 IDENTIFY = {
   "Banshee": ["⚡ Fast when far"],
   "Dayan": ["🚀 Very fast"],
@@ -78,7 +77,6 @@ PAGE1 = ghost_list[:14]
 PAGE2 = ghost_list[14:]
 
 print(f"[DEBUG] Ghost count: {len(GHOSTS)}")
-print(f"[DEBUG] Page1: {len(PAGE1)} | Page2: {len(PAGE2)}")
 
 # ================= MAIN VIEW =================
 class MainView(discord.ui.View):
@@ -98,10 +96,10 @@ class MainDropdown(discord.ui.Select):
           discord.SelectOption(label="Cursed Objects", emoji="🧿"),
       ]
 
-      super().__init__(placeholder="Select option...", options=options)
+      super().__init__(placeholder="Select option...", options=options, custom_id="main_dropdown")
 
   async def callback(self, interaction):
-      print(f"[DEBUG] MainDropdown clicked: {self.values[0]}")
+      print(f"[DEBUG] Menu: {self.values[0]}")
       await interaction.response.defer()
 
       choice = self.values[0]
@@ -110,113 +108,112 @@ class MainDropdown(discord.ui.Select):
       self.parent_view.add_item(MainDropdown(self.parent_view))
 
       if choice == "Ghost Menu":
-          print("[DEBUG] Opening Ghost Menu Page 1")
           self.parent_view.add_item(GhostSelect(page=1))
           self.parent_view.add_item(NextPageButton())
+          self.parent_view.add_item(SearchButton())  # ✅ ADDED
 
       elif choice == "Journal":
-          print("[DEBUG] Opening Journal")
           self.parent_view.add_item(EvidenceSelect())
 
       elif choice == "Behavior":
-          print("[DEBUG] Opening Behavior")
           self.parent_view.add_item(BehaviorSelect())
 
       elif choice == "Cursed Objects":
-          print("[DEBUG] Opening Cursed Objects")
           embed = discord.Embed(
               title="🧿 Cursed Objects",
               description="Ouija Board\nTarot Cards\nMirror\nMusic Box\nSummoning Circle",
               color=0x9b59b6
           )
+          return await interaction.followup.edit_message(interaction.message.id, embed=embed, view=self.parent_view)
 
-          return await interaction.followup.edit_message(
-              interaction.message.id,
-              embed=embed,
-              view=self.parent_view
-          )
-
-      await interaction.followup.edit_message(
-          interaction.message.id,
-          content=f"🔄 Switched to **{choice}**",
-          view=self.parent_view
-      )
+      await interaction.followup.edit_message(interaction.message.id, view=self.parent_view)
 
 # ================= GHOST SELECT =================
 class GhostSelect(discord.ui.Select):
   def __init__(self, page=1):
-      self.page = page
       ghosts = PAGE1 if page == 1 else PAGE2
-
-      print(f"[DEBUG] Loading GhostSelect Page {page} ({len(ghosts)} ghosts)")
-
       options = [discord.SelectOption(label=g) for g in ghosts]
 
-      super().__init__(
-          placeholder=f"Select ghost (Page {page})...",
-          options=options
-      )
+      super().__init__(placeholder=f"Select ghost (Page {page})...", options=options, custom_id=f"ghost_{page}")
 
   async def callback(self, interaction):
       await interaction.response.defer()
-
       name = self.values[0]
-      print(f"[DEBUG] Selected ghost: {name}")
 
       embed = discord.Embed(title=f"👻 {name}", color=0x6C5CE7)
       embed.add_field(name="🧪 Evidence", value="\n".join(GHOSTS[name]), inline=False)
       embed.add_field(name="🧠 Identify", value="\n".join(IDENTIFY[name]), inline=False)
 
-      await interaction.followup.edit_message(
-          interaction.message.id,
-          embed=embed,
-          view=self.view
-      )
+      await interaction.followup.edit_message(interaction.message.id, embed=embed, view=self.view)
 
 # ================= PAGE BUTTONS =================
 class NextPageButton(discord.ui.Button):
   def __init__(self):
-      super().__init__(label="➡️ Next", style=discord.ButtonStyle.secondary)
+      super().__init__(label="➡️ Next", style=discord.ButtonStyle.secondary, custom_id="next")
 
   async def callback(self, interaction):
-      print("[DEBUG] Next page clicked")
       await interaction.response.defer()
-
       view = self.view
       view.clear_items()
-
       view.add_item(MainDropdown(view))
       view.add_item(GhostSelect(page=2))
       view.add_item(PrevPageButton())
-
-      await interaction.followup.edit_message(
-          interaction.message.id,
-          content="👻 Ghost Menu (Page 2)",
-          view=view
-      )
+      view.add_item(SearchButton())
+      await interaction.followup.edit_message(interaction.message.id, view=view)
 
 class PrevPageButton(discord.ui.Button):
   def __init__(self):
-      super().__init__(label="⬅️ Back", style=discord.ButtonStyle.secondary)
+      super().__init__(label="⬅️ Back", style=discord.ButtonStyle.secondary, custom_id="prev")
 
   async def callback(self, interaction):
-      print("[DEBUG] Previous page clicked")
       await interaction.response.defer()
-
       view = self.view
       view.clear_items()
-
       view.add_item(MainDropdown(view))
       view.add_item(GhostSelect(page=1))
       view.add_item(NextPageButton())
+      view.add_item(SearchButton())
+      await interaction.followup.edit_message(interaction.message.id, view=view)
 
-      await interaction.followup.edit_message(
-          interaction.message.id,
-          content="👻 Ghost Menu (Page 1)",
-          view=view
-      )
+# ================= SEARCH =================
+class SearchButton(discord.ui.Button):
+  def __init__(self):
+      super().__init__(label="🔍 Search", style=discord.ButtonStyle.primary)
 
-# ================= JOURNAL =================
+  async def callback(self, interaction):
+      await interaction.response.send_modal(GhostSearchModal())
+
+class GhostSearchModal(discord.ui.Modal, title="Search Ghost"):
+  search = discord.ui.TextInput(label="Name", placeholder="Type ghost...")
+
+  async def on_submit(self, interaction):
+      query = self.search.value.lower()
+      results = [g for g in GHOSTS if query in g.lower()][:25]
+
+      if not results:
+          return await interaction.response.send_message("❌ Not found", ephemeral=True)
+
+      view = discord.ui.View()
+      view.add_item(SearchResultSelect(results))
+
+      await interaction.response.send_message("Results:", view=view, ephemeral=True)
+
+class SearchResultSelect(discord.ui.Select):
+  def __init__(self, results):
+      options = [discord.SelectOption(label=g) for g in results]
+      super().__init__(placeholder="Select ghost...", options=options)
+
+  async def callback(self, interaction):
+      await interaction.response.defer()
+      name = self.values[0]
+
+      embed = discord.Embed(title=f"👻 {name}", color=0x6C5CE7)
+      embed.add_field(name="🧪 Evidence", value="\n".join(GHOSTS[name]), inline=False)
+      embed.add_field(name="🧠 Identify", value="\n".join(IDENTIFY[name]), inline=False)
+
+      await interaction.followup.send(embed=embed, ephemeral=True)
+
+# ================= OTHER =================
 class EvidenceSelect(discord.ui.Select):
   def __init__(self):
       options = [discord.SelectOption(label=e) for e in EVIDENCE_LIST]
@@ -224,21 +221,10 @@ class EvidenceSelect(discord.ui.Select):
 
   async def callback(self, interaction):
       await interaction.response.defer()
-
       matches = [g for g, ev in GHOSTS.items() if all(e in ev for e in self.values)]
-      print(f"[DEBUG] Evidence selected: {self.values} -> {matches}")
+      embed = discord.Embed(title="Result", description="\n".join(matches) if matches else "None")
+      await interaction.followup.edit_message(interaction.message.id, embed=embed, view=self.view)
 
-      text = "❌ No ghosts" if not matches else "\n".join(matches)
-
-      embed = discord.Embed(title="📊 Result", description=text)
-
-      await interaction.followup.edit_message(
-          interaction.message.id,
-          embed=embed,
-          view=self.view
-      )
-
-# ================= BEHAVIOR =================
 class BehaviorSelect(discord.ui.Select):
   def __init__(self):
       options = [discord.SelectOption(label=b) for b in BEHAVIOR]
@@ -246,23 +232,9 @@ class BehaviorSelect(discord.ui.Select):
 
   async def callback(self, interaction):
       await interaction.response.defer()
-
-      behavior = self.values[0]
-      print(f"[DEBUG] Behavior selected: {behavior}")
-
-      ghosts = BEHAVIOR[behavior]
-
-      embed = discord.Embed(
-          title=f"🧠 Behavior: {behavior}",
-          description="\n".join(ghosts),
-          color=0x00b894
-      )
-
-      await interaction.followup.edit_message(
-          interaction.message.id,
-          embed=embed,
-          view=self.view
-      )
+      b = self.values[0]
+      embed = discord.Embed(title=b, description="\n".join(BEHAVIOR[b]))
+      await interaction.followup.edit_message(interaction.message.id, embed=embed, view=self.view)
 
 # ================= PANEL =================
 class PanelView(discord.ui.View):
@@ -271,32 +243,20 @@ class PanelView(discord.ui.View):
 
   @discord.ui.button(label="🎛 Open Panel", style=discord.ButtonStyle.success)
   async def open_panel(self, interaction, button):
-      print("[DEBUG] Panel opened")
-      await interaction.response.send_message(
-          "Select option below 👇",
-          view=MainView(),
-          ephemeral=True
-      )
+      await interaction.response.send_message("Select option below 👇", view=MainView(), ephemeral=True)
 
-# ================= CHANNEL SELECT =================
+# ================= CHANNEL =================
 class ChannelSelect(discord.ui.ChannelSelect):
   def __init__(self):
       super().__init__(channel_types=[discord.ChannelType.text])
 
   async def callback(self, interaction):
       await interaction.response.defer(ephemeral=True)
-
       channel = interaction.guild.get_channel(self.values[0].id)
-      print(f"[DEBUG] Sending panel to: {channel}")
 
-      embed = discord.Embed(
-          title="👻 Phasmophobia Panel By Tj 👻",
-          description="This panel is designed to assist investigators in locating and identifying ghosts. Use the buttons below 👇",
-          color=0x5865F2
-      )
-
+      embed = discord.Embed(title="👻 Phasmophobia Panel By TJ", description="This panel is designed to assist investigators in locating and identifying ghosts. Use the buttons below :point_down:")
       await channel.send(embed=embed, view=PanelView())
-      await interaction.followup.send(f"✅ Sent to {channel.mention}", ephemeral=True)
+      await interaction.followup.send("✅ Sent", ephemeral=True)
 
 class ChannelSelectView(discord.ui.View):
   def __init__(self):
@@ -310,17 +270,13 @@ class Phasmophobia(commands.Cog):
 
   @app_commands.command(name="crghostpanel")
   async def panel(self, interaction):
-      await interaction.response.send_message(
-          "Select channel:",
-          view=ChannelSelectView(),
-          ephemeral=True
-      )
+      await interaction.response.send_message("Select channel:", view=ChannelSelectView(), ephemeral=True)
 
   @commands.Cog.listener()
   async def on_ready(self):
       self.bot.add_view(PanelView())
       self.bot.add_view(MainView())
-      print("✅ FINAL SYSTEM READY")
+      print("READY")
 
 async def setup(bot):
   await bot.add_cog(Phasmophobia(bot))
