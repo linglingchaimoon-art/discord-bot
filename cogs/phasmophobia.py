@@ -215,7 +215,10 @@ class GhostSearchModal(discord.ui.Modal, title="Search Ghost"):
       embed.add_field(name="🧠 Identify", value="\n".join(IDENTIFY[ghost]), inline=False)
 
       # ================= SEND + AUTO DELETE =================
+      role = discord.utils.get(interaction.guild.roles, name="Phasmophobia")
+
       await interaction.response.send_message(
+          content=role.mention if role else interaction.user.mention,
           embed=embed,
           ephemeral=True,
           delete_after=30  # 👈 DELETE AFTER 30 SECONDS
