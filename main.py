@@ -50,6 +50,12 @@ async def load_cogs():
            await bot.load_extension(f"cogs.{file[:-3]}")
            print(f"✅ Loaded {file}")
 
+
+# ---------------- PHASMOBIA ----------------
+@bot.event
+async def on_message(message):
+   await bot.process_commands(message)
+   
 # ---------------- READY ----------------
 @bot.event
 async def on_ready():

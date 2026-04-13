@@ -3,7 +3,7 @@ from discord.ext import commands
 import difflib  # 🔥 used for smart suggestions
 
 # 🔥 CHANGE THIS
-ALLOWED_CHANNEL_ID = 1493062544863264869
+ALLOWED_CHANNEL_ID = 123456789012345678
 
 
 # ================= GHOST DATABASE =================
@@ -23,6 +23,22 @@ GHOSTS = {
        "weakness": "Very slow when not chasing.",
        "identify": "Huge speed change when it sees you."
    },
+
+   "demon": {
+       "description": "An aggressive ghost that hunts more often.",
+       "evidence": ["Freezing Temperatures", "Ghost Writing", "Ultraviolet"],
+       "strength": "Can hunt very frequently.",
+       "weakness": "Crucifix has increased range.",
+       "identify": "Early hunts and frequent hunts."
+   },
+
+   "shade": {
+       "description": "A shy ghost that avoids people.",
+       "evidence": ["EMF Level 5", "Ghost Writing", "Freezing Temperatures"],
+       "strength": "Hard to find evidence.",
+       "weakness": "Won’t hunt if players are nearby.",
+       "identify": "Very inactive when multiple players present."
+   }
 }
 
 
