@@ -211,7 +211,11 @@ class SearchResultSelect(discord.ui.Select):
       embed.add_field(name="🧪 Evidence", value="\n".join(GHOSTS[name]), inline=False)
       embed.add_field(name="🧠 Identify", value="\n".join(IDENTIFY[name]), inline=False)
 
-      await interaction.followup.send(embed=embed, ephemeral=True)
+      await interaction.response.edit_message(
+         content=None,
+         embed=embed,
+         view=None
+      )
 
 # ================= OTHER =================
 class EvidenceSelect(discord.ui.Select):
