@@ -2,119 +2,37 @@ import discord
 from discord.ext import commands
 import difflib
 
-ALLOWED_CHANNEL_ID = 1493062544863264869  # 🔥 CHANGE THIS
+ALLOWED_CHANNEL_ID = 123456789012345678  # 🔥 CHANGE THIS
+
+print("[DEBUG] Phasmo system loaded")
 
 
-# ================= FULL GHOST DATABASE =================
+# ================= DATABASE =================
 GHOSTS = {
-   "spirit": {
-       "evidence": ["EMF Level 5", "Spirit Box", "Ghost Writing"],
-       "strength": "None",
-       "weakness": "Smudge sticks stop it longer",
-       "identify": "Long delay between hunts after smudge"
-   },
-   "wraith": {
-       "evidence": ["EMF Level 5", "Spirit Box", "DOTS"],
-       "strength": "Can teleport to players",
-       "weakness": "Does not step in salt",
-       "identify": "No footprints in salt"
-   },
-   "phantom": {
-       "evidence": ["Spirit Box", "Fingerprints", "DOTS"],
-       "strength": "Looking at it reduces sanity faster",
-       "weakness": "Disappears in photos",
-       "identify": "Invisible in ghost photo"
-   },
-   "poltergeist": {
-       "evidence": ["Spirit Box", "Fingerprints", "Ghost Writing"],
-       "strength": "Throws many objects",
-       "weakness": "Useless in empty rooms",
-       "identify": "Multi-object throws"
-   },
-   "banshee": {
-       "evidence": ["Fingerprints", "Ghost Orbs", "DOTS"],
-       "strength": "Targets one player",
-       "weakness": "Afraid of crucifix",
-       "identify": "Only hunts one player"
-   },
-   "jinn": {
-       "evidence": ["EMF Level 5", "Freezing Temps", "Fingerprints"],
-       "strength": "Fast when far away",
-       "weakness": "Breaker off = slower",
-       "identify": "Speed depends on breaker"
-   },
-   "mare": {
-       "evidence": ["Spirit Box", "Ghost Orbs", "Ghost Writing"],
-       "strength": "More active in dark",
-       "weakness": "Less active in light",
-       "identify": "Turns lights off often"
-   },
-   "revenant": {
-       "evidence": ["Ghost Writing", "Freezing Temps", "Ghost Orbs"],
-       "strength": "Very fast when chasing",
-       "weakness": "Very slow otherwise",
-       "identify": "Huge speed difference"
-   },
-   "shade": {
-       "evidence": ["EMF Level 5", "Ghost Writing", "Freezing Temps"],
-       "strength": "Hard to find",
-       "weakness": "Won’t hunt with players nearby",
-       "identify": "Very shy behavior"
-   },
-   "demon": {
-       "evidence": ["Freezing Temps", "Ghost Writing", "Fingerprints"],
-       "strength": "Hunts often",
-       "weakness": "Crucifix range increased",
-       "identify": "Early hunts"
-   },
-   "yokai": {
-       "evidence": ["Spirit Box", "Ghost Orbs", "DOTS"],
-       "strength": "Triggered by voice",
-       "weakness": "Short hearing range",
-       "identify": "Talking causes hunts"
-   },
-   "hantu": {
-       "evidence": ["Fingerprints", "Ghost Orbs", "Freezing Temps"],
-       "strength": "Fast in cold",
-       "weakness": "Slow in warm",
-       "identify": "Speed tied to temp"
-   },
-   "raiju": {
-       "evidence": ["EMF Level 5", "Ghost Orbs", "DOTS"],
-       "strength": "Faster near electronics",
-       "weakness": "Disrupts electronics",
-       "identify": "Fast near devices"
-   },
-   "obake": {
-       "evidence": ["EMF Level 5", "Fingerprints", "Ghost Orbs"],
-       "strength": "Leaves rare prints",
-       "weakness": "Fingerprints change",
-       "identify": "Unique fingerprints"
-   },
-   "mimic": {
-       "evidence": ["Spirit Box", "Fingerprints", "Freezing Temps"],
-       "strength": "Copies other ghosts",
-       "weakness": "Always shows ghost orbs",
-       "identify": "Extra fake evidence"
-   },
-   "moroi": {
-       "evidence": ["Spirit Box", "Ghost Writing", "Freezing Temps"],
-       "strength": "Gets faster over time",
-       "weakness": "Weak to smudge",
-       "identify": "Speed increases"
-   },
-   "deogen": {
-       "evidence": ["Spirit Box", "Ghost Writing", "DOTS"],
-       "strength": "Always finds you",
-       "weakness": "Very slow close",
-       "identify": "Knows location always"
-   },
-   "thaye": {
-       "evidence": ["Ghost Writing", "Ghost Orbs", "DOTS"],
-       "strength": "Fast when young",
-       "weakness": "Gets weaker over time",
-       "identify": "Slows with age"
-   }
+   "spirit": {"evidence": ["emf", "spirit box", "writing"]},
+   "wraith": {"evidence": ["emf", "spirit box", "dots"]},
+   "phantom": {"evidence": ["spirit box", "fingerprints", "dots"]},
+   "poltergeist": {"evidence": ["spirit box", "fingerprints", "writing"]},
+   "banshee": {"evidence": ["fingerprints", "orbs", "dots"]},
+   "jinn": {"evidence": ["emf", "freezing", "fingerprints"]},
+   "mare": {"evidence": ["spirit box", "orbs", "writing"]},
+   "revenant": {"evidence": ["writing", "freezing", "orbs"]},
+   "shade": {"evidence": ["emf", "writing", "freezing"]},
+   "demon": {"evidence": ["freezing", "writing", "fingerprints"]},
+   "yurei": {"evidence": ["freezing", "orbs", "dots"]},
+   "oni": {"evidence": ["emf", "freezing", "dots"]},
+   "yokai": {"evidence": ["spirit box", "orbs", "dots"]},
+   "hantu": {"evidence": ["fingerprints", "orbs", "freezing"]},
+   "goryo": {"evidence": ["emf", "fingerprints", "dots"]},
+   "myling": {"evidence": ["emf", "fingerprints", "writing"]},
+   "onryo": {"evidence": ["spirit box", "orbs", "freezing"]},
+   "twins": {"evidence": ["emf", "spirit box", "freezing"]},
+   "raiju": {"evidence": ["emf", "orbs", "dots"]},
+   "obake": {"evidence": ["emf", "fingerprints", "orbs"]},
+   "mimic": {"evidence": ["spirit box", "fingerprints", "freezing"]},
+   "moroi": {"evidence": ["spirit box", "writing", "freezing"]},
+   "deogen": {"evidence": ["spirit box", "writing", "dots"]},
+   "thaye": {"evidence": ["writing", "orbs", "dots"]}
 }
 
 
@@ -122,6 +40,7 @@ GHOSTS = {
 class Phasmophobia(commands.Cog):
    def __init__(self, bot):
        self.bot = bot
+       print("[DEBUG] Cog initialized")
 
    @commands.Cog.listener()
    async def on_message(self, message):
@@ -135,9 +54,47 @@ class Phasmophobia(commands.Cog):
        if not message.content.startswith("!"):
            return
 
-       ghost_input = message.content[1:].lower()
+       print(f"[DEBUG] Command: {message.content}")
 
-       # ===== AUTO MATCH =====
+       # 🔥 ANTI DUPLICATE
+       if hasattr(message, "_handled"):
+           return
+       message._handled = True
+
+       args = message.content.lower().split()
+
+       # ================= EVIDENCE COMMAND =================
+       if args[0] == "!evidence":
+
+           if len(args) < 2:
+               await message.channel.send("❌ Usage: !evidence emf freezing")
+               return
+
+           search = args[1:]
+           print(f"[DEBUG] Searching evidence: {search}")
+
+           matches = []
+
+           for ghost, data in GHOSTS.items():
+               if all(e in data["evidence"] for e in search):
+                   matches.append(ghost.capitalize())
+
+           if not matches:
+               await message.channel.send("❌ No ghosts found with that evidence")
+               return
+
+           embed = discord.Embed(
+               title="🔍 Possible Ghosts",
+               description="\n".join(f"👻 {g}" for g in matches),
+               color=0x3498db
+           )
+
+           await message.channel.send(embed=embed)
+           return
+
+       # ================= GHOST LOOKUP =================
+       ghost_input = args[0][1:]
+
        if ghost_input in GHOSTS:
            ghost_name = ghost_input
        else:
@@ -148,11 +105,9 @@ class Phasmophobia(commands.Cog):
 
        ghost = GHOSTS[ghost_name]
 
-       # ===== NICE EMBED =====
        embed = discord.Embed(
            title=f"👻 {ghost_name.capitalize()}",
-           description="━━━━━━━━━━━━━━━━━━",
-           color=0x8e44ad
+           color=0x9b59b6
        )
 
        embed.add_field(
@@ -160,26 +115,6 @@ class Phasmophobia(commands.Cog):
            value="\n".join(f"• {e}" for e in ghost["evidence"]),
            inline=False
        )
-
-       embed.add_field(
-           name="💪 Strength",
-           value=ghost["strength"],
-           inline=False
-       )
-
-       embed.add_field(
-           name="⚠️ Weakness",
-           value=ghost["weakness"],
-           inline=False
-       )
-
-       embed.add_field(
-           name="🔍 How to Identify",
-           value=ghost["identify"],
-           inline=False
-       )
-
-       embed.set_footer(text="Phasmophobia Ghost Guide 👻")
 
        await message.channel.send(embed=embed)
 
