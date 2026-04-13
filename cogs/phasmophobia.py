@@ -215,10 +215,7 @@ class GhostSearchModal(discord.ui.Modal, title="Search Ghost"):
       embed.add_field(name="🧠 Identify", value="\n".join(IDENTIFY[ghost]), inline=False)
 
       # ================= SEND + AUTO DELETE =================
-      role = discord.utils.get(interaction.guild.roles, name="Phasmophobia")
-
       await interaction.response.send_message(
-          content=role.mention if role else interaction.user.mention,
           embed=embed,
           ephemeral=True,
           delete_after=30  # 👈 DELETE AFTER 30 SECONDS
@@ -266,7 +263,13 @@ class ChannelSelect(discord.ui.ChannelSelect):
       channel = interaction.guild.get_channel(self.values[0].id)
 
       embed = discord.Embed(title="👻 Phasmophobia Panel By TJ", description="Manage your ghost-hunting experience with ease. Use the panel below to get started.👇")
-      await channel.send(embed=embed, view=PanelView())
+      role = discord.utils.get(interaction.guild.roles, name="Phasmophobia")
+
+      await channel.send(
+         content=role.mention if role else None,
+         embed=embed,
+            view=PanelView()
+      )
       await interaction.followup.send("✅ Sent", ephemeral=True)
 
 class ChannelSelectView(discord.ui.View):
