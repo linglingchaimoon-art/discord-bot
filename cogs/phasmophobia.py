@@ -76,8 +76,6 @@ ghost_list = list(GHOSTS.keys())
 PAGE1 = ghost_list[:14]
 PAGE2 = ghost_list[14:]
 
-print(f"[DEBUG] Ghost count: {len(GHOSTS)}")
-
 # ================= MAIN VIEW =================
 class MainView(discord.ui.View):
   def __init__(self):
@@ -96,10 +94,9 @@ class MainDropdown(discord.ui.Select):
           discord.SelectOption(label="Cursed Objects", emoji="🧿"),
       ]
 
-      super().__init__(placeholder="Select option...", options=options, custom_id="main_dropdown")
+      super().__init__(placeholder="Select option...", options=options)
 
   async def callback(self, interaction):
-      print(f"[DEBUG] Menu: {self.values[0]}")
       await interaction.response.defer()
 
       choice = self.values[0]
@@ -110,7 +107,7 @@ class MainDropdown(discord.ui.Select):
       if choice == "Ghost Menu":
           self.parent_view.add_item(GhostSelect(page=1))
           self.parent_view.add_item(NextPageButton())
-          self.parent_view.add_item(SearchButton())  # ✅ ADDED
+          self.parent_view.add_item(SearchButton())
 
       elif choice == "Journal":
           self.parent_view.add_item(EvidenceSelect())
@@ -118,15 +115,10 @@ class MainDropdown(discord.ui.Select):
       elif choice == "Behavior":
           self.parent_view.add_item(BehaviorSelect())
 
-      elif choice == "Cursed Objects":
-          embed = discord.Embed(
-              title="🧿 Cursed Objects",
-              description="Ouija Board\nTarot Cards\nMirror\nMusic Box\nSummoning Circle",
-              color=0x9b59b6
-          )
-          return await interaction.followup.edit_message(interaction.message.id, embed=embed, view=self.parent_view)
-
-      await interaction.followup.edit_message(interaction.message.id, view=self.parent_view)
+      await interaction.followup.edit_message(
+          interaction.message.id,
+          view=self.parent_view
+      )
 
 # ================= GHOST SELECT =================
 class GhostSelect(discord.ui.Select):
@@ -134,22 +126,27 @@ class GhostSelect(discord.ui.Select):
       ghosts = PAGE1 if page == 1 else PAGE2
       options = [discord.SelectOption(label=g) for g in ghosts]
 
-      super().__init__(placeholder=f"Select ghost (Page {page})...", options=options, custom_id=f"ghost_{page}")
+      super().__init__(placeholder=f"Select ghost (Page {page})...", options=options)
 
   async def callback(self, interaction):
       await interaction.response.defer()
+
       name = self.values[0]
 
       embed = discord.Embed(title=f"👻 {name}", color=0x6C5CE7)
       embed.add_field(name="🧪 Evidence", value="\n".join(GHOSTS[name]), inline=False)
       embed.add_field(name="🧠 Identify", value="\n".join(IDENTIFY[name]), inline=False)
 
-      await interaction.followup.edit_message(interaction.message.id, embed=embed, view=self.view)
+      await interaction.followup.edit_message(
+          interaction.message.id,
+          embed=embed,
+          view=self.view
+      )
 
 # ================= PAGE BUTTONS =================
 class NextPageButton(discord.ui.Button):
   def __init__(self):
-      super().__init__(label="➡️ Next", style=discord.ButtonStyle.secondary, custom_id="next")
+      super().__init__(label="➡️ Next", style=discord.ButtonStyle.secondary)
 
   async def callback(self, interaction):
       await interaction.response.defer()
@@ -159,11 +156,12 @@ class NextPageButton(discord.ui.Button):
       view.add_item(GhostSelect(page=2))
       view.add_item(PrevPageButton())
       view.add_item(SearchButton())
+
       await interaction.followup.edit_message(interaction.message.id, view=view)
 
 class PrevPageButton(discord.ui.Button):
   def __init__(self):
-      super().__init__(label="⬅️ Back", style=discord.ButtonStyle.secondary, custom_id="prev")
+      super().__init__(label="⬅️ Back", style=discord.ButtonStyle.secondary)
 
   async def callback(self, interaction):
       await interaction.response.defer()
@@ -173,6 +171,7 @@ class PrevPageButton(discord.ui.Button):
       view.add_item(GhostSelect(page=1))
       view.add_item(NextPageButton())
       view.add_item(SearchButton())
+
       await interaction.followup.edit_message(interaction.message.id, view=view)
 
 # ================= SEARCH =================
@@ -184,7 +183,7 @@ class SearchButton(discord.ui.Button):
       await interaction.response.send_modal(GhostSearchModal())
 
 class GhostSearchModal(discord.ui.Modal, title="Search Ghost"):
-  search = discord.ui.TextInput(label="Name", placeholder="Type ghost...")
+  search = discord.ui.TextInput(label="Ghost name")
 
   async def on_submit(self, interaction):
       query = self.search.value.lower()
@@ -205,20 +204,15 @@ class SearchResultSelect(discord.ui.Select):
 
   async def callback(self, interaction):
       await interaction.response.defer()
+
       name = self.values[0]
 
       embed = discord.Embed(title=f"👻 {name}", color=0x6C5CE7)
       embed.add_field(name="🧪 Evidence", value="\n".join(GHOSTS[name]), inline=False)
       embed.add_field(name="🧠 Identify", value="\n".join(IDENTIFY[name]), inline=False)
 
-      await interaction.response.message.edit(
-         content=None,
-         embed=embed,
-         view=None
-        )
+      await interaction.message.edit(content=None, embed=embed, view=None)
       await interaction.message.delete(delay=60)
-         
-      
 
 # ================= OTHER =================
 class EvidenceSelect(discord.ui.Select):
