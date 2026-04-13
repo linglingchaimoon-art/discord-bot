@@ -4,7 +4,7 @@ from discord import app_commands
 import difflib
 
 # ================= SETTINGS =================
-PANEL_TIMEOUT = 60  # ⏱ CHANGE TIME HERE (seconds)
+PANEL_TIMEOUT = 10  # ⏱ CHANGE TIME HERE (seconds)
 
 # ================= SESSION STORAGE =================
 active_panels = {}  # user_id : message
