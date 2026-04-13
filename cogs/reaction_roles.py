@@ -6,8 +6,8 @@ from motor.motor_asyncio import AsyncIOMotorClient
 
 MONGO_URI = os.getenv("MONGO_URI")
 
-# 🔥 PANEL CHANNEL
-PANEL_CHANNEL_ID = 1442896372549550142  # CHANGE THIS
+# 🔥 PANEL CHANNEL (CHANGE THIS)
+PANEL_CHANNEL_ID = 1493012783942598819
 
 
 # ================= ROLE VIEW =================
@@ -22,20 +22,23 @@ class RoleView(discord.ui.View):
        if not role:
            return await interaction.response.send_message(
                f"❌ Role '{role_name}' not found",
-               ephemeral=True
+               ephemeral=True,
+               delete_after=3
            )
 
        if role in interaction.user.roles:
            await interaction.user.remove_roles(role)
            await interaction.response.send_message(
                f"❌ Removed **{role.name}**",
-               ephemeral=True
+               ephemeral=True,
+               delete_after=3
            )
        else:
            await interaction.user.add_roles(role)
            await interaction.response.send_message(
                f"✅ Added **{role.name}**",
-               ephemeral=True
+               ephemeral=True,
+               delete_after=3
            )
 
    # ================= BUTTONS =================
@@ -77,7 +80,6 @@ class ButtonRoles(commands.Cog):
        if not channel:
            return await interaction.followup.send("❌ Panel channel not found")
 
-       # 🎨 CLEAN EMBED
        embed = discord.Embed(
            title="🎮 Gaming Roles",
            description=(
@@ -93,7 +95,7 @@ class ButtonRoles(commands.Cog):
            color=0x5865F2
        )
 
-       # 🧠 ROLE NAMES (AUTO DETECT)
+       # 🧠 AUTO ROLE NAMES (NO IDS)
        roles = {
            "👻": "Phasmophobia",
            "🔫": "PUBG",
@@ -110,7 +112,7 @@ class ButtonRoles(commands.Cog):
            "roles": roles
        })
 
-       await interaction.followup.send("✅ Panel created successfully")
+       await interaction.followup.send("✅ Panel created", ephemeral=True, delete_after=3)
 
    # ================= PERSIST =================
    @commands.Cog.listener()
@@ -121,5 +123,6 @@ class ButtonRoles(commands.Cog):
            self.bot.add_view(RoleView(panel["roles"]))
 
 
+# ================= SETUP =================
 async def setup(bot):
    await bot.add_cog(ButtonRoles(bot))
