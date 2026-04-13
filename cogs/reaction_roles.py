@@ -9,10 +9,9 @@ MONGO_URI = os.getenv("MONGO_URI")
 
 # ================= BUTTON =================
 class RoleButton(discord.ui.Button):
-   def __init__(self, role_name, label, emoji):
+   def __init__(self, role_name):
        super().__init__(
-           label=label,
-           emoji=emoji,
+           label=role_name,
            style=discord.ButtonStyle.primary
        )
        self.role_name = role_name
@@ -22,7 +21,7 @@ class RoleButton(discord.ui.Button):
 
        if not role:
            return await interaction.response.send_message(
-               "❌ Role not found",
+               f"❌ Role '{self.role_name}' not found",
                ephemeral=True,
                delete_after=3
            )
@@ -48,8 +47,8 @@ class RoleView(discord.ui.View):
    def __init__(self, roles):
        super().__init__(timeout=None)
 
-       for r in roles:
-           self.add_item(RoleButton(r["role"], r["label"], r["emoji"]))
+       for role_name in roles:
+           self.add_item(RoleButton(role_name))
 
 
 # ================= MODAL =================
@@ -57,7 +56,7 @@ class PanelModal(discord.ui.Modal, title="Create Role Panel"):
 
    title_input = discord.ui.TextInput(
        label="Panel Title",
-       placeholder="🎮 Gaming Roles",
+       placeholder="Gaming Roles",
        required=True
    )
 
@@ -74,6 +73,12 @@ class PanelModal(discord.ui.Modal, title="Create Role Panel"):
        required=True
    )
 
+   roles_input = discord.ui.TextInput(
+       label="Roles (comma separated)",
+       placeholder="Minecraft, Valorant, Fortnite",
+       required=True
+   )
+
    async def on_submit(self, interaction: discord.Interaction):
 
        await interaction.response.defer(ephemeral=True)
@@ -85,17 +90,16 @@ class PanelModal(discord.ui.Modal, title="Create Role Panel"):
            if not channel:
                return await interaction.followup.send("❌ Invalid channel", delete_after=5)
 
-           # 🔥 DEFAULT ROLES (EDITABLE)
-           roles = [
-               {"role": "Phasmophobia", "label": "Phasmophobia", "emoji": "👻"},
-               {"role": "PUBG", "label": "PUBG", "emoji": "🔫"},
-               {"role": "Rocket League", "label": "Rocket League", "emoji": "🚗"},
-               {"role": "Minecraft", "label": "Minecraft", "emoji": "⛏️"}
-           ]
+           # 🔥 PARSE ROLES
+           roles = [r.strip() for r in self.roles_input.value.split(",")]
 
            embed = discord.Embed(
                title=self.title_input.value,
-               description=self.description_input.value + "\n\n━━━━━━━━━━━━━━━━━━\n✨ Click to get role\n❌ Click again to remove",
+               description=(
+                   self.description_input.value
+                   + "\n\n━━━━━━━━━━━━━━━━━━\n"
+                   + "✨ Click to get role\n❌ Click again to remove"
+               ),
                color=0x5865F2
            )
 
@@ -115,8 +119,8 @@ class PanelModal(discord.ui.Modal, title="Create Role Panel"):
            await interaction.followup.send("✅ Panel created", delete_after=3)
 
        except Exception as e:
-           print("GUI ERROR:", e)
-           await interaction.followup.send("❌ Error creating panel", delete_after=5)
+           print("ERROR:", e)
+           await interaction.followup.send("❌ Failed to create panel", delete_after=5)
 
 
 # ================= COG =================
@@ -128,20 +132,17 @@ class PanelGUI(commands.Cog):
        self.db = self.client["discord_bot"]
        self.collection = self.db["panels"]
 
-   # ================= COMMAND =================
-   @app_commands.command(name="createpanel", description="Open panel GUI")
+   @app_commands.command(name="createpanel", description="Create panel with GUI")
    async def createpanel(self, interaction: discord.Interaction):
        await interaction.response.send_modal(PanelModal())
 
-   # ================= PERSIST =================
    @commands.Cog.listener()
    async def on_ready(self):
-       print("✅ GUI Panel system loaded")
+       print("✅ Custom GUI system ready")
 
        async for panel in self.collection.find():
            self.bot.add_view(RoleView(panel["roles"]))
 
 
-# ================= SETUP =================
 async def setup(bot):
    await bot.add_cog(PanelGUI(bot))
