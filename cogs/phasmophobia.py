@@ -290,8 +290,8 @@ class ChannelSelect(discord.ui.ChannelSelect):
       print(f"[DEBUG] Sending panel to: {channel}")
 
       embed = discord.Embed(
-          title="👻 Phasmophobia Panel",
-          description="Use button below 👇",
+          title="👻 Phasmophobia Panel By Tj 👻",
+          description="This panel is designed to assist investigators in locating and identifying ghosts. Use the buttons below 👇",
           color=0x5865F2
       )
 
