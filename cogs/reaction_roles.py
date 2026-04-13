@@ -3,23 +3,19 @@ from discord.ext import commands
 from discord import app_commands
 import os
 from motor.motor_asyncio import AsyncIOMotorClient
-from bson import ObjectId  # 🔥 IMPORTANT
 
 MONGO_URI = os.getenv("MONGO_URI")
-
-# 🔥 CHANGE THIS
-PANEL_CHANNEL_ID = 1442896372549550142
 
 
 # ================= BUTTON =================
 class RoleButton(discord.ui.Button):
-   def __init__(self, data):
+   def __init__(self, role_name, label, emoji):
        super().__init__(
-           label=data["label"],
-           emoji=data["emoji"],
+           label=label,
+           emoji=emoji,
            style=discord.ButtonStyle.primary
        )
-       self.role_name = data["role"]
+       self.role_name = role_name
 
    async def callback(self, interaction: discord.Interaction):
        role = discord.utils.get(interaction.guild.roles, name=self.role_name)
@@ -48,117 +44,104 @@ class RoleButton(discord.ui.Button):
 
 
 # ================= VIEW =================
-class DynamicRoleView(discord.ui.View):
+class RoleView(discord.ui.View):
    def __init__(self, roles):
        super().__init__(timeout=None)
 
-       for role_data in roles:
-           self.add_item(RoleButton(role_data))
+       for r in roles:
+           self.add_item(RoleButton(r["role"], r["label"], r["emoji"]))
+
+
+# ================= MODAL =================
+class PanelModal(discord.ui.Modal, title="Create Role Panel"):
+
+   title_input = discord.ui.TextInput(
+       label="Panel Title",
+       placeholder="🎮 Gaming Roles",
+       required=True
+   )
+
+   description_input = discord.ui.TextInput(
+       label="Description",
+       style=discord.TextStyle.paragraph,
+       placeholder="Choose your roles...",
+       required=True
+   )
+
+   channel_input = discord.ui.TextInput(
+       label="Channel ID",
+       placeholder="Paste channel ID",
+       required=True
+   )
+
+   async def on_submit(self, interaction: discord.Interaction):
+
+       await interaction.response.defer(ephemeral=True)
+
+       try:
+           channel_id = int(self.channel_input.value)
+           channel = interaction.guild.get_channel(channel_id)
+
+           if not channel:
+               return await interaction.followup.send("❌ Invalid channel", delete_after=5)
+
+           # 🔥 DEFAULT ROLES (EDITABLE)
+           roles = [
+               {"role": "Phasmophobia", "label": "Phasmophobia", "emoji": "👻"},
+               {"role": "PUBG", "label": "PUBG", "emoji": "🔫"},
+               {"role": "Rocket League", "label": "Rocket League", "emoji": "🚗"},
+               {"role": "Minecraft", "label": "Minecraft", "emoji": "⛏️"}
+           ]
+
+           embed = discord.Embed(
+               title=self.title_input.value,
+               description=self.description_input.value + "\n\n━━━━━━━━━━━━━━━━━━\n✨ Click to get role\n❌ Click again to remove",
+               color=0x5865F2
+           )
+
+           view = RoleView(roles)
+
+           msg = await channel.send(embed=embed, view=view)
+
+           # 🔥 SAVE TO MONGO
+           cog = interaction.client.get_cog("PanelGUI")
+           await cog.collection.insert_one({
+               "guild_id": interaction.guild.id,
+               "message_id": msg.id,
+               "channel_id": channel.id,
+               "roles": roles
+           })
+
+           await interaction.followup.send("✅ Panel created", delete_after=3)
+
+       except Exception as e:
+           print("GUI ERROR:", e)
+           await interaction.followup.send("❌ Error creating panel", delete_after=5)
 
 
 # ================= COG =================
-class PanelEditor(commands.Cog):
+class PanelGUI(commands.Cog):
    def __init__(self, bot):
        self.bot = bot
 
        self.client = AsyncIOMotorClient(MONGO_URI)
        self.db = self.client["discord_bot"]
-       self.panels = self.db["panels"]
+       self.collection = self.db["panels"]
 
-   # ================= CREATE =================
-   @app_commands.command(name="panel_create", description="Create panel")
-   async def panel_create(self, interaction: discord.Interaction, title: str, description: str):
-
-       await interaction.response.defer(ephemeral=True)
-
-       panel = {
-           "guild_id": interaction.guild.id,
-           "title": title,
-           "description": description,
-           "roles": []
-       }
-
-       result = await self.panels.insert_one(panel)
-
-       await interaction.followup.send(
-           f"✅ Panel created\nID: `{result.inserted_id}`",
-           delete_after=5
-       )
-
-   # ================= ADD ROLE =================
-   @app_commands.command(name="panel_add", description="Add role to panel")
-   async def panel_add(
-       self,
-       interaction: discord.Interaction,
-       panel_id: str,
-       role: discord.Role,
-       label: str,
-       emoji: str
-   ):
-
-       await interaction.response.defer(ephemeral=True)
-
-       try:
-           panel = await self.panels.find_one({"_id": ObjectId(panel_id)})
-       except:
-           return await interaction.followup.send("❌ Invalid panel ID", delete_after=5)
-
-       if not panel:
-           return await interaction.followup.send("❌ Panel not found", delete_after=5)
-
-       panel["roles"].append({
-           "role": role.name,
-           "label": label,
-           "emoji": emoji
-       })
-
-       await self.panels.update_one(
-           {"_id": ObjectId(panel_id)},
-           {"$set": {"roles": panel["roles"]}}
-       )
-
-       await interaction.followup.send("✅ Role added", delete_after=3)
-
-   # ================= SEND =================
-   @app_commands.command(name="panel_send", description="Send panel")
-   async def panel_send(self, interaction: discord.Interaction, panel_id: str):
-
-       await interaction.response.defer(ephemeral=True)
-
-       try:
-           panel = await self.panels.find_one({"_id": ObjectId(panel_id)})
-       except:
-           return await interaction.followup.send("❌ Invalid ID", delete_after=5)
-
-       if not panel:
-           return await interaction.followup.send("❌ Panel not found", delete_after=5)
-
-       embed = discord.Embed(
-           title=panel["title"],
-           description=panel["description"],
-           color=0x5865F2
-       )
-
-       view = DynamicRoleView(panel["roles"])
-
-       channel = interaction.guild.get_channel(PANEL_CHANNEL_ID)
-
-       if not channel:
-           return await interaction.followup.send("❌ Panel channel not found", delete_after=5)
-
-       await channel.send(embed=embed, view=view)
-
-       await interaction.followup.send("✅ Panel sent", delete_after=3)
+   # ================= COMMAND =================
+   @app_commands.command(name="createpanel", description="Open panel GUI")
+   async def createpanel(self, interaction: discord.Interaction):
+       await interaction.response.send_modal(PanelModal())
 
    # ================= PERSIST =================
    @commands.Cog.listener()
    async def on_ready(self):
-       print("✅ Panel editor loaded")
+       print("✅ GUI Panel system loaded")
 
-       async for panel in self.panels.find():
-           self.bot.add_view(DynamicRoleView(panel["roles"]))
+       async for panel in self.collection.find():
+           self.bot.add_view(RoleView(panel["roles"]))
 
 
 # ================= SETUP =================
 async def setup(bot):
-   await bot.add_cog(PanelEditor(bot))
+   await bot.add_cog(PanelGUI(bot))
