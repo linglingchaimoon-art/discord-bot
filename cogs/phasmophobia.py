@@ -4,18 +4,64 @@ from discord import app_commands
 
 # ================= DATA =================
 GHOSTS = {
-   "Jinn": ["EMF","Freezing","Fingerprints"],
-   "Revenant": ["Writing","Freezing","Orbs"],
+   "Banshee": ["Fingerprints","Orbs","DOTS"],
+   "Dayan": ["EMF","Orbs","Spirit Box"],
+   "Deogen": ["Writing","Spirit Box","DOTS"],
+   "Demon": ["Fingerprints","Writing","Freezing"],
+   "Gallu": ["EMF","Fingerprints","Spirit Box"],
+   "Goryo": ["EMF","Fingerprints","DOTS"],
+   "Hantu": ["Fingerprints","Orbs","Freezing"],
+   "Jinn": ["EMF","Fingerprints","Freezing"],
+   "Mare": ["Spirit Box","Orbs","Writing"],
+   "Moroi": ["Writing","Spirit Box","Freezing"],
+   "Myling": ["EMF","Fingerprints","Writing"],
+   "Obake": ["EMF","Fingerprints","Orbs"],
+   "Obambo": ["Fingerprints","Writing","DOTS"],
+   "Oni": ["EMF","Freezing","DOTS"],
+   "Onryo": ["Spirit Box","Orbs","Freezing"],
+   "Phantom": ["Spirit Box","Fingerprints","DOTS"],
+   "Poltergeist": ["Spirit Box","Fingerprints","Writing"],
+   "Raiju": ["EMF","Orbs","DOTS"],
+   "Revenant": ["Orbs","Writing","Freezing"],
+   "Shade": ["EMF","Writing","Freezing"],
+   "Spirit": ["EMF","Spirit Box","Writing"],
+   "Thaye": ["Orbs","Writing","DOTS"],
+   "The Mimic": ["Spirit Box","Fingerprints","Freezing"],
+   "The Twins": ["EMF","Spirit Box","Freezing"],
    "Wraith": ["EMF","Spirit Box","DOTS"],
-   "Deogen": ["Spirit Box","Writing","DOTS"]
-}
+   "Yokai": ["Spirit Box","Orbs","DOTS"],
+   "Yurei": ["Orbs","Freezing","DOTS"],
+   }
 
 IDENTIFY = {
    "Jinn": ["⚡ Fast when far"],
    "Revenant": ["🚀 Very fast"],
-   "Wraith": ["❌ No salt"],
-   "Deogen": ["🎯 Always finds you"]
-}
+   "Revenant": ["🚀 Very fast"],
+   "Revenant": ["🚀 Very fast"],
+   "Revenant": ["🚀 Very fast"],
+   "Revenant": ["🚀 Very fast"],
+   "Revenant": ["🚀 Very fast"],
+   "Revenant": ["🚀 Very fast"],
+   "Revenant": ["🚀 Very fast"],
+   "Revenant": ["🚀 Very fast"],
+   "Revenant": ["🚀 Very fast"],
+   "Revenant": ["🚀 Very fast"],
+   "Revenant": ["🚀 Very fast"],
+   "Revenant": ["🚀 Very fast"],
+   "Revenant": ["🚀 Very fast"],
+   "Revenant": ["🚀 Very fast"],
+   "Revenant": ["🚀 Very fast"],
+   "Revenant": ["🚀 Very fast"],
+   "Revenant": ["🚀 Very fast"],
+   "Revenant": ["🚀 Very fast"],
+   "Revenant": ["🚀 Very fast"],
+   "Revenant": ["🚀 Very fast"],
+   "Revenant": ["🚀 Very fast"],
+   "Revenant": ["🚀 Very fast"],
+   "Revenant": ["🚀 Very fast"],
+   "Revenant": ["🚀 Very fast"],
+   "Revenant": ["🚀 Very fast"],
+   }
 
 BEHAVIOR = {
    "Fast": ["Revenant","Jinn"],
