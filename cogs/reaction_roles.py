@@ -3,20 +3,15 @@ from discord.ext import commands
 from discord import app_commands
 import os
 from motor.motor_asyncio import AsyncIOMotorClient
+from bson import ObjectId  # 🔥 IMPORTANT
 
 MONGO_URI = os.getenv("MONGO_URI")
-PANEL_CHANNEL_ID = 1442896372549550142  # CHANGE THIS
+
+# 🔥 CHANGE THIS
+PANEL_CHANNEL_ID = 1442896372549550142
 
 
-# ================= VIEW =================
-class DynamicRoleView(discord.ui.View):
-   def __init__(self, roles):
-       super().__init__(timeout=None)
-
-       for role_data in roles:
-           self.add_item(RoleButton(role_data))
-
-
+# ================= BUTTON =================
 class RoleButton(discord.ui.Button):
    def __init__(self, data):
        super().__init__(
@@ -30,14 +25,35 @@ class RoleButton(discord.ui.Button):
        role = discord.utils.get(interaction.guild.roles, name=self.role_name)
 
        if not role:
-           return await interaction.response.send_message("❌ Role not found", ephemeral=True, delete_after=3)
+           return await interaction.response.send_message(
+               "❌ Role not found",
+               ephemeral=True,
+               delete_after=3
+           )
 
        if role in interaction.user.roles:
            await interaction.user.remove_roles(role)
-           await interaction.response.send_message(f"❌ Removed {role.name}", ephemeral=True, delete_after=3)
+           await interaction.response.send_message(
+               f"❌ Removed **{role.name}**",
+               ephemeral=True,
+               delete_after=3
+           )
        else:
            await interaction.user.add_roles(role)
-           await interaction.response.send_message(f"✅ Added {role.name}", ephemeral=True, delete_after=3)
+           await interaction.response.send_message(
+               f"✅ Added **{role.name}**",
+               ephemeral=True,
+               delete_after=3
+           )
+
+
+# ================= VIEW =================
+class DynamicRoleView(discord.ui.View):
+   def __init__(self, roles):
+       super().__init__(timeout=None)
+
+       for role_data in roles:
+           self.add_item(RoleButton(role_data))
 
 
 # ================= COG =================
@@ -64,7 +80,10 @@ class PanelEditor(commands.Cog):
 
        result = await self.panels.insert_one(panel)
 
-       await interaction.followup.send(f"✅ Panel created\nID: `{result.inserted_id}`")
+       await interaction.followup.send(
+           f"✅ Panel created\nID: `{result.inserted_id}`",
+           delete_after=5
+       )
 
    # ================= ADD ROLE =================
    @app_commands.command(name="panel_add", description="Add role to panel")
@@ -79,10 +98,13 @@ class PanelEditor(commands.Cog):
 
        await interaction.response.defer(ephemeral=True)
 
-       panel = await self.panels.find_one({"_id": panel_id})
+       try:
+           panel = await self.panels.find_one({"_id": ObjectId(panel_id)})
+       except:
+           return await interaction.followup.send("❌ Invalid panel ID", delete_after=5)
 
        if not panel:
-           return await interaction.followup.send("❌ Panel not found")
+           return await interaction.followup.send("❌ Panel not found", delete_after=5)
 
        panel["roles"].append({
            "role": role.name,
@@ -91,11 +113,11 @@ class PanelEditor(commands.Cog):
        })
 
        await self.panels.update_one(
-           {"_id": panel_id},
+           {"_id": ObjectId(panel_id)},
            {"$set": {"roles": panel["roles"]}}
        )
 
-       await interaction.followup.send("✅ Role added")
+       await interaction.followup.send("✅ Role added", delete_after=3)
 
    # ================= SEND =================
    @app_commands.command(name="panel_send", description="Send panel")
@@ -103,10 +125,13 @@ class PanelEditor(commands.Cog):
 
        await interaction.response.defer(ephemeral=True)
 
-       panel = await self.panels.find_one({"_id": panel_id})
+       try:
+           panel = await self.panels.find_one({"_id": ObjectId(panel_id)})
+       except:
+           return await interaction.followup.send("❌ Invalid ID", delete_after=5)
 
        if not panel:
-           return await interaction.followup.send("❌ Panel not found")
+           return await interaction.followup.send("❌ Panel not found", delete_after=5)
 
        embed = discord.Embed(
            title=panel["title"],
@@ -118,18 +143,22 @@ class PanelEditor(commands.Cog):
 
        channel = interaction.guild.get_channel(PANEL_CHANNEL_ID)
 
+       if not channel:
+           return await interaction.followup.send("❌ Panel channel not found", delete_after=5)
+
        await channel.send(embed=embed, view=view)
 
-       await interaction.followup.send("✅ Panel sent")
+       await interaction.followup.send("✅ Panel sent", delete_after=3)
 
    # ================= PERSIST =================
    @commands.Cog.listener()
    async def on_ready(self):
-       print("Panel editor ready")
+       print("✅ Panel editor loaded")
 
        async for panel in self.panels.find():
            self.bot.add_view(DynamicRoleView(panel["roles"]))
 
 
+# ================= SETUP =================
 async def setup(bot):
    await bot.add_cog(PanelEditor(bot))
