@@ -39,17 +39,31 @@ class RoleButton(discord.ui.Button):
        self.role_name = data["name"]
 
    async def callback(self, interaction: discord.Interaction):
+       print(f"[DEBUG] Clicked {self.role_name}")
+
        role = discord.utils.get(interaction.guild.roles, name=self.role_name)
 
        if not role:
-           return await interaction.response.send_message("❌ Role not found", ephemeral=True, delete_after=3)
+           return await interaction.response.send_message(
+               "❌ Role not found",
+               ephemeral=True,
+               delete_after=3
+           )
 
        if role in interaction.user.roles:
            await interaction.user.remove_roles(role)
-           await interaction.response.send_message(f"❌ Removed {role.name}", ephemeral=True, delete_after=3)
+           await interaction.response.send_message(
+               f"❌ Removed {role.name}",
+               ephemeral=True,
+               delete_after=3
+           )
        else:
            await interaction.user.add_roles(role)
-           await interaction.response.send_message(f"✅ Added {role.name}", ephemeral=True, delete_after=3)
+           await interaction.response.send_message(
+               f"✅ Added {role.name}",
+               ephemeral=True,
+               delete_after=3
+           )
 
 
 # ================= VIEW =================
@@ -73,15 +87,25 @@ class ChannelSelect(discord.ui.ChannelSelect):
        self.edit_id = edit_id
 
    async def callback(self, interaction: discord.Interaction):
+       print("[DEBUG] Channel selected")
+
        await interaction.response.defer(ephemeral=True)
 
        try:
-           channel = interaction.guild.get_channel(self.values[0].id)
+           raw = self.values[0]
+           channel = interaction.guild.get_channel(raw.id)
+
+           if not channel:
+               raise Exception("Channel not found")
+
+           print(f"[DEBUG] Sending to {channel.name}")
+
            cog = interaction.client.get_cog("PanelGUI")
 
            embed = discord.Embed(
                title=self.data["title"],
-               description=self.data["description"],
+               description=self.data["description"] +
+                           "\n\n━━━━━━━━━━━━━━━━━━\n✨ Click to get role\n❌ Click again to remove",
                color=0x5865F2
            )
 
@@ -117,15 +141,18 @@ class ChannelSelect(discord.ui.ChannelSelect):
                    "ping": ping
                })
 
-               await interaction.followup.send("✅ Panel created", delete_after=3)
+               await interaction.followup.send(
+                   f"✅ Panel created in #{channel.name}",
+                   delete_after=3
+               )
 
            # ===== EDIT =====
            else:
                panel = await cog.collection.find_one({"_id": self.edit_id})
 
                old_channel = interaction.guild.get_channel(panel["channel_id"])
-               msg = await old_channel.fetch_message(panel["message_id"])
-               await msg.delete()
+               old_msg = await old_channel.fetch_message(panel["message_id"])
+               await old_msg.delete()
 
                new_msg = await channel.send(
                    content=content,
@@ -146,11 +173,17 @@ class ChannelSelect(discord.ui.ChannelSelect):
                    }}
                )
 
-               await interaction.followup.send("✏️ Panel updated", delete_after=3)
+               await interaction.followup.send(
+                   f"✏️ Panel updated & moved to #{channel.name}",
+                   delete_after=3
+               )
 
        except Exception as e:
            print("[ERROR]", e)
-           await interaction.followup.send(f"❌ {e}", delete_after=5)
+           await interaction.followup.send(
+               f"❌ Error: {e}",
+               delete_after=5
+           )
 
 
 class ChannelView(discord.ui.View):
@@ -183,7 +216,7 @@ class PanelModal(discord.ui.Modal, title="Create / Edit Panel"):
 
    ping_input = discord.ui.TextInput(
        label="Ping (here / everyone / none)",
-       placeholder="Example: here",
+       placeholder="here",
        required=True
    )
 
@@ -192,10 +225,11 @@ class PanelModal(discord.ui.Modal, title="Create / Edit Panel"):
        self.edit_id = edit_id
 
    async def on_submit(self, interaction: discord.Interaction):
+       print("[DEBUG] Modal submitted")
+
        roles = parse_roles(self.roles_input.value)
 
        ping = self.ping_input.value.lower()
-
        if ping not in ["here", "everyone", "none"]:
            return await interaction.response.send_message(
                "❌ Use: here / everyone / none",
@@ -220,43 +254,67 @@ class PanelModal(discord.ui.Modal, title="Create / Edit Panel"):
 class PanelGUI(commands.Cog):
    def __init__(self, bot):
        self.bot = bot
+
+       print("[DEBUG] Connecting Mongo...")
        self.client = AsyncIOMotorClient(MONGO_URI)
        self.db = self.client["discord_bot"]
        self.collection = self.db["panels"]
 
+   # ===== CREATE =====
    @app_commands.command(name="createpanel", description="Create panel")
    async def createpanel(self, interaction: discord.Interaction):
+       print("[DEBUG] /createpanel used")
        await interaction.response.send_modal(PanelModal())
 
+   # ===== EDIT =====
    @app_commands.command(name="editpanel", description="Edit panel")
    async def editpanel(self, interaction: discord.Interaction):
+       print("[DEBUG] /editpanel used")
+
+       # 🔥 FIX (IMPORTANT)
+       await interaction.response.defer(ephemeral=True)
+
        panels = []
        async for p in self.collection.find({"guild_id": interaction.guild.id}):
            panels.append(p)
 
        if not panels:
-           return await interaction.response.send_message("❌ No panels", ephemeral=True)
+           return await interaction.followup.send(
+               "❌ No panels found",
+               ephemeral=True
+           )
 
        options = [
-           discord.SelectOption(label=p["title"], value=str(p["_id"]))
-           for p in panels
+           discord.SelectOption(
+               label=p["title"],
+               value=str(p["_id"])
+           ) for p in panels
        ]
 
        class Select(discord.ui.Select):
            def __init__(self):
                super().__init__(placeholder="Select panel", options=options)
 
-           async def callback(self, i):
-               await i.response.send_modal(PanelModal(edit_id=self.values[0]))
+           async def callback(self, interaction2):
+               print("[DEBUG] Panel selected")
+
+               await interaction2.response.send_modal(
+                   PanelModal(edit_id=self.values[0])
+               )
 
        view = discord.ui.View()
        view.add_item(Select())
 
-       await interaction.response.send_message("Select panel:", view=view, ephemeral=True)
+       await interaction.followup.send(
+           "Select panel to edit:",
+           view=view,
+           ephemeral=True
+       )
 
+   # ===== LOAD BUTTONS =====
    @commands.Cog.listener()
    async def on_ready(self):
-       print("✅ PANEL SYSTEM WITH PING READY")
+       print("✅ PANEL SYSTEM READY")
 
        async for panel in self.collection.find():
            self.bot.add_view(RoleView(panel["roles"]))
