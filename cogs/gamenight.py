@@ -8,12 +8,7 @@ temp_setup = {}
 # ===== MODAL =====
 class GameNightModal(discord.ui.Modal, title="🎮 Create Game Night"):
    time = discord.ui.TextInput(label="Time (YYYY-MM-DD HH:MM)", required=True)
-   note = discord.ui.TextInput(
-       label="Extra Note (optional)",
-       required=False,
-       style=discord.TextStyle.paragraph,
-       max_length=200
-   )
+   note = discord.ui.TextInput(label="Extra Note (optional)", required=False, style=discord.TextStyle.paragraph)
 
    async def on_submit(self, interaction: discord.Interaction):
        temp_setup[interaction.user.id] = {
@@ -22,11 +17,7 @@ class GameNightModal(discord.ui.Modal, title="🎮 Create Game Night"):
            "host": interaction.user.id
        }
 
-       await interaction.response.send_message(
-           "🎮 Select a game:",
-           view=GameSelectView(),
-           ephemeral=True
-       )
+       await interaction.response.send_message("🎮 Select a game:", view=GameSelectView(), ephemeral=True)
 
 # ===== GAME SELECT =====
 class GameSelectView(discord.ui.View):
@@ -44,19 +35,11 @@ class GameSelectView(discord.ui.View):
        data = temp_setup.get(interaction.user.id)
        data["game"] = select.values[0]
 
-       await interaction.response.edit_message(
-           content="🤝 Select a co-host:",
-           view=CoHostView()
-       )
+       await interaction.response.edit_message(content="🤝 Select a co-host:", view=CoHostView())
 
 # ===== COHOST =====
 class CoHostView(discord.ui.View):
-   @discord.ui.select(
-       cls=discord.ui.UserSelect,
-       placeholder="Select co-host",
-       min_values=1,
-       max_values=1
-   )
+   @discord.ui.select(cls=discord.ui.UserSelect, placeholder="Select co-host", min_values=1, max_values=1)
    async def select_callback(self, interaction, select):
        data = temp_setup.get(interaction.user.id)
 
@@ -68,16 +51,12 @@ class CoHostView(discord.ui.View):
 
        if data["game"] == "pubg":
            await interaction.response.edit_message(content="🎮 PUBG Setup:", view=PUBGView())
-
        elif data["game"] == "minecraft":
            await interaction.response.edit_message(content="🟩 Minecraft Setup:", view=MinecraftView())
-
        elif data["game"] == "phasmophobia":
            await interaction.response.edit_message(content="👻 Phasmophobia Setup:", view=PhasmophobiaView())
-
        elif data["game"] == "amongus":
            await interaction.response.edit_message(content="👨‍🚀 Among Us Setup:", view=AmongUsView())
-
        elif data["game"] == "rocketleague":
            await interaction.response.edit_message(content="🚗 Rocket League Setup:", view=RocketLeagueView())
 
@@ -125,12 +104,9 @@ class PUBGView(discord.ui.View):
 
        data["gamemode"] = value
 
-       await interaction.response.edit_message(
-           content="📢 Select ping:",
-           view=PingView()
-       )
+       await interaction.response.edit_message(content="👥 Select player limit:", view=PlayerLimitView())
 
-# ===== CUSTOM PUBG MODE =====
+# ===== CUSTOM PUBG =====
 class CustomModeModal(discord.ui.Modal, title="Custom Gamemode"):
    custom = discord.ui.TextInput(label="Enter custom gamemode", required=True)
 
@@ -138,25 +114,43 @@ class CustomModeModal(discord.ui.Modal, title="Custom Gamemode"):
        data = temp_setup.get(interaction.user.id)
        data["gamemode"] = self.custom.value
 
-       await interaction.response.edit_message(
-           content="📢 Select ping:",
-           view=PingView()
-       )
+       # ✅ FORCE UNLIMITED
+       data["max"] = "unlimited"
 
-# ===== MINECRAFT =====
-class MinecraftView(discord.ui.View):
+       await interaction.response.edit_message(content="📢 Select ping:", view=PingView())
+
+# ===== PLAYER LIMIT =====
+class PlayerLimitView(discord.ui.View):
 
    @discord.ui.select(
-       placeholder="Version",
+       placeholder="Player limit",
        options=[
-           discord.SelectOption(label="Java", value="java"),
-           discord.SelectOption(label="Bedrock", value="bedrock"),
+           discord.SelectOption(label="Unlimited", value="unlimited"),
+           discord.SelectOption(label="Use Game Default", value="default"),
        ]
    )
-   async def version(self, interaction, select):
-       temp_setup[interaction.user.id]["version"] = select.values[0]
-       await interaction.response.defer()
+   async def select_limit(self, interaction, select):
+       data = temp_setup.get(interaction.user.id)
 
+       if select.values[0] == "unlimited":
+           data["max"] = "unlimited"
+       else:
+           data["max"] = get_default_max(data)
+
+       await interaction.response.edit_message(content="📢 Select ping:", view=PingView())
+
+# ===== DEFAULT LIMITS =====
+def get_default_max(data):
+   if data.get("game") == "pubg":
+       return {"solo": 1, "duo": 2}.get(data.get("mode"), 4)
+   if data.get("game") == "amongus":
+       return 15
+   if data.get("game") == "phasmophobia":
+       return 4
+   return 4
+
+# ===== OTHER GAME VIEWS =====
+class MinecraftView(discord.ui.View):
    @discord.ui.button(label="Set Server IP")
    async def ip(self, interaction, button):
        modal = discord.ui.Modal(title="Server IP")
@@ -166,92 +160,47 @@ class MinecraftView(discord.ui.View):
        async def callback(i):
            data = temp_setup.get(interaction.user.id)
            data["server"] = ip.value
-           await create_event(i, data)
+           await interaction.response.edit_message(content="👥 Select player limit:", view=PlayerLimitView())
 
        modal.on_submit = callback
        await interaction.response.send_modal(modal)
 
-# ===== PHASMO =====
 class PhasmophobiaView(discord.ui.View):
-
-   @discord.ui.select(
-       placeholder="Difficulty",
-       options=[
-           discord.SelectOption(label="Amateur", value="amateur"),
-           discord.SelectOption(label="Professional", value="pro"),
-           discord.SelectOption(label="Nightmare", value="nightmare"),
-       ]
-   )
+   @discord.ui.select(placeholder="Difficulty", options=[
+       discord.SelectOption(label="Amateur", value="amateur"),
+       discord.SelectOption(label="Professional", value="pro"),
+       discord.SelectOption(label="Nightmare", value="nightmare"),
+   ])
    async def difficulty(self, interaction, select):
        temp_setup[interaction.user.id]["difficulty"] = select.values[0]
-       await create_event(interaction, temp_setup[interaction.user.id])
+       await interaction.response.edit_message(content="👥 Select player limit:", view=PlayerLimitView())
 
-# ===== AMONG US =====
 class AmongUsView(discord.ui.View):
-
-   @discord.ui.select(
-       placeholder="Map",
-       options=[
-           discord.SelectOption(label="Skeld", value="skeld"),
-           discord.SelectOption(label="Mira", value="mira"),
-           discord.SelectOption(label="Polus", value="polus"),
-       ]
-   )
-   async def map(self, interaction, select):
-       temp_setup[interaction.user.id]["map"] = select.values[0]
-       await interaction.response.defer()
-
-   @discord.ui.select(
-       placeholder="Players",
-       options=[
-           discord.SelectOption(label="5", value="5"),
-           discord.SelectOption(label="10", value="10"),
-           discord.SelectOption(label="15", value="15"),
-       ]
-   )
+   @discord.ui.select(placeholder="Players", options=[
+       discord.SelectOption(label="10", value="10"),
+       discord.SelectOption(label="15", value="15"),
+   ])
    async def players(self, interaction, select):
        data = temp_setup.get(interaction.user.id)
        data["max"] = int(select.values[0])
-       await create_event(interaction, data)
+       await interaction.response.edit_message(content="📢 Select ping:", view=PingView())
 
-# ===== ROCKET LEAGUE =====
 class RocketLeagueView(discord.ui.View):
-
-   @discord.ui.select(
-       placeholder="Mode",
-       options=[
-           discord.SelectOption(label="1v1", value="1"),
-           discord.SelectOption(label="2v2", value="2"),
-           discord.SelectOption(label="3v3", value="3"),
-       ]
-   )
+   @discord.ui.select(placeholder="Mode", options=[
+       discord.SelectOption(label="2v2", value="2"),
+       discord.SelectOption(label="3v3", value="3"),
+   ])
    async def mode(self, interaction, select):
        temp_setup[interaction.user.id]["max"] = int(select.values[0]) * 2
-       await interaction.response.defer()
-
-   @discord.ui.select(
-       placeholder="Type",
-       options=[
-           discord.SelectOption(label="Casual", value="casual"),
-           discord.SelectOption(label="Ranked", value="ranked"),
-       ]
-   )
-   async def type(self, interaction, select):
-       data = temp_setup.get(interaction.user.id)
-       data["type"] = select.values[0]
-       await create_event(interaction, data)
+       await interaction.response.edit_message(content="📢 Select ping:", view=PingView())
 
 # ===== PING =====
 class PingView(discord.ui.View):
-
-   @discord.ui.select(
-       placeholder="Ping option",
-       options=[
-           discord.SelectOption(label="No Ping", value="none"),
-           discord.SelectOption(label="@here", value="here"),
-           discord.SelectOption(label="@everyone", value="everyone"),
-       ]
-   )
+   @discord.ui.select(placeholder="Ping option", options=[
+       discord.SelectOption(label="No Ping", value="none"),
+       discord.SelectOption(label="@here", value="here"),
+       discord.SelectOption(label="@everyone", value="everyone"),
+   ])
    async def ping(self, interaction, select):
        data = temp_setup.get(interaction.user.id)
 
@@ -263,10 +212,12 @@ class PingView(discord.ui.View):
 
 # ===== EMBED =====
 def build_embed(data):
-   embed = discord.Embed(
-       title=f"🎮 {data['game'].title()} Game Night",
-       color=discord.Color.blurple()
-   )
+   players = data["players"]
+   max_players = data.get("max")
+
+   text = f"{len(players)}/∞" if max_players == "unlimited" else f"{len(players)}/{max_players}"
+
+   embed = discord.Embed(title=f"🎮 {data['game'].title()} Game Night")
 
    embed.add_field(name="👤 Host", value=f"<@{data['host']}>")
    embed.add_field(name="🤝 Co-host", value=f"<@{data['cohost']}>")
@@ -275,22 +226,11 @@ def build_embed(data):
    if data.get("note"):
        embed.add_field(name="📝 Note", value=data["note"], inline=False)
 
-   for key, label in [
-       ("mode", "🎯 Mode"),
-       ("perspective", "👁 Perspective"),
-       ("gamemode", "🏆 Gamemode"),
-       ("server", "🌐 Server"),
-       ("version", "🟩 Version"),
-       ("difficulty", "👻 Difficulty"),
-       ("map", "🗺 Map"),
-       ("type", "🏆 Type")
-   ]:
-       if data.get(key):
-           embed.add_field(name=label, value=data[key])
+   if data.get("gamemode"):
+       embed.add_field(name="🏆 Gamemode", value=data["gamemode"])
 
-   players = data["players"]
    embed.add_field(
-       name=f"👥 Players ({len(players)}/{data.get('max', 4)})",
+       name=f"👥 Players ({text})",
        value="\n".join(f"<@{p}>" for p in players) if players else "No one yet",
        inline=False
    )
@@ -304,8 +244,9 @@ class EventView(discord.ui.View):
    async def join(self, interaction, button):
        event = game_data[interaction.message.id]
 
-       if len(event["players"]) >= event.get("max", 4):
-           return await interaction.response.send_message("❌ Full", ephemeral=True)
+       if event.get("max") != "unlimited":
+           if len(event["players"]) >= event["max"]:
+               return await interaction.response.send_message("❌ Full", ephemeral=True)
 
        if interaction.user.id not in event["players"]:
            event["players"].append(interaction.user.id)
@@ -323,10 +264,6 @@ class EventView(discord.ui.View):
 
 # ===== CREATE =====
 async def create_event(interaction, data):
-
-   if not data.get("max"):
-       data["max"] = 4
-
    data["players"] = []
 
    msg = await interaction.channel.send(
