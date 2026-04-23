@@ -147,7 +147,7 @@ class ChannelSelect(discord.ui.ChannelSelect):
 
 class ChannelView(discord.ui.View):
    def __init__(self, data):
-       super().__init__(timeout=60)
+       super().__init__(timeout=None)
        self.add_item(ChannelSelect(data))
 
 
