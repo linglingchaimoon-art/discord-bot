@@ -67,6 +67,7 @@ async def on_ready():
    synced = await bot.tree.sync(guild=guild)
    print(f"🔥 Synced {len(synced)} commands")
 
+
 # ---------------- ERROR ----------------
 @bot.event
 async def on_command_error(ctx, error):

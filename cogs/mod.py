@@ -59,6 +59,10 @@ class ReasonModal(discord.ui.Modal, title="Enter Reason"):
             await interaction.guild.ban(self.member)
             emoji = "🔨"
 
+        elif self.action == "unmute":
+            await interaction.guild.unmute(self.member)
+            emoji = "🔊"
+
         elif self.action == "kick":
             await interaction.guild.kick(self.member)
             emoji = "👢"
@@ -119,9 +123,15 @@ class ModPanel(discord.ui.View):
     async def mute(self, interaction: discord.Interaction, button):
         await interaction.response.send_modal(ReasonModal(self.cog, "mute", self.member))
 
+    @discord.ui.button(label="Unmute", style=discord.ButtonStyle.green)
+    async def unmute(self, interaction: discord.Interaction, button):
+        await interaction.response.send_modal(ReasonModal(self.cog, "unmute", self.member))
+
     @discord.ui.button(label="Close", style=discord.ButtonStyle.red)
     async def close(self, interaction: discord.Interaction, button):
         await interaction.message.delete()
+
+    
 
 
 # ---------------- COG ----------------
@@ -157,6 +167,10 @@ class Mod(commands.Cog):
     @app_commands.command(name="mute", description="Mute user")
     async def mute(self, interaction: discord.Interaction, member: discord.Member):
         await interaction.response.send_modal(ReasonModal(self, "mute", member))
+
+    @app_commands.command(name="unmute", description="Unmute user")
+    async def unmute(self, interaction: discord.Interaction, member: discord.Member):
+        await interaction.response.send_modal(ReasonModal(self, "unmute", member))
 
     @app_commands.command(name="purge", description="Delete messages")
     async def purge(self, interaction: discord.Interaction, amount: int):
